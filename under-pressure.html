@@ -1,0 +1,633 @@
+<title>Under Pressure</title>
+<meta name="description" content="Liverpool pod performance dashboard &mdash; match-by-match stats, season leaderboards and records across competitions.">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0a1f14; --surface:#102a1c; --surface-2:#16351f; --surface-3:#1c4126;
+  --ink:#eef4ee; --ink-soft:#a9c2ad; --ink-faint:#6f8874;
+  --line:#20452e; --line-strong:#2c5a3c;
+  --accent:#e8b339; --accent-ink:#f4c95d; --accent-soft:#3a2f10;
+  --lime:#8fd94a;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#e8695f;
+  --w:#0ca30c; --d:#c98500; --l:#e8695f;
+  --brand-red-1:#ff6a52; --brand-red-2:#e8342a; --brand-red-3:#b81d1d;
+  --shadow:0 1px 2px rgba(0,0,0,.35), 0 12px 30px -16px rgba(0,0,0,.7);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#3fbf3f; --s7:#9085e9; --s8:#e66767;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    color-scheme: light;
+    --bg:#f5f7f3; --surface:#ffffff; --surface-2:#eef1ea; --surface-3:#e6ebe0;
+    --ink:#0c1c12; --ink-soft:#4c5f4e; --ink-faint:#7c8c7e;
+    --line:#dde3d8; --line-strong:#c7d0bf;
+    --accent:#e8b339; --accent-ink:#7a5008; --accent-soft:#fbecc7;
+    --lime:#4f8f22;
+    --good:#0ca30c; --warn:#a66c0a; --serious:#c1502b; --critical:#c1352f;
+    --w:#0ca30c; --d:#a66c0a; --l:#c1352f;
+    --brand-red-1:#e8443b; --brand-red-2:#c1352f; --brand-red-3:#8f1f1f;
+    --shadow:0 1px 2px rgba(20,25,20,.05), 0 10px 26px -16px rgba(20,25,20,.22);
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  }
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --bg:#f5f7f3; --surface:#ffffff; --surface-2:#eef1ea; --surface-3:#e6ebe0;
+  --ink:#0c1c12; --ink-soft:#4c5f4e; --ink-faint:#7c8c7e;
+  --line:#dde3d8; --line-strong:#c7d0bf;
+  --accent:#e8b339; --accent-ink:#7a5008; --accent-soft:#fbecc7;
+  --lime:#4f8f22;
+  --good:#0ca30c; --warn:#a66c0a; --serious:#c1502b; --critical:#c1352f;
+  --w:#0ca30c; --d:#a66c0a; --l:#c1352f;
+  --brand-red-1:#e8443b; --brand-red-2:#c1352f; --brand-red-3:#8f1f1f;
+  --shadow:0 1px 2px rgba(20,25,20,.05), 0 10px 26px -16px rgba(20,25,20,.22);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+.disp{font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0}
+button{font:inherit}
+a{color:var(--accent-ink)}
+::selection{background:var(--accent);color:#1a1206}
+
+.wrap{max-width:1280px;margin:0 auto;padding-inline:20px}
+
+/* ---------- header ---------- */
+header.top{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--line)}
+.brandband{background:
+    radial-gradient(120% 220% at 15% -40%, rgba(143,217,74,.12), transparent 60%),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  border-bottom:1px solid var(--line)}
+.brandrow{display:flex;align-items:center;gap:18px;padding:18px 0 14px;flex-wrap:wrap}
+.wordmark{display:flex;align-items:center;gap:10px;flex:1;min-width:220px}
+.wordmark .rule{flex:1;height:3px;background:linear-gradient(90deg, transparent, var(--lime) 15%, var(--lime) 85%, transparent);
+  min-width:24px;border-radius:2px;position:relative}
+.wordmark .rule::before,.wordmark .rule::after{content:"";position:absolute;top:50%;width:5px;height:5px;border-radius:50%;
+  background:var(--lime);transform:translateY(-50%)}
+.wordmark .rule.l::after{right:0}
+.wordmark .rule.r::before{left:0}
+.wordmark h1{font-family:"Barlow Condensed",sans-serif;font-weight:800;font-style:italic;
+  font-size:clamp(28px,5vw,44px);letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;
+  margin:0}
+.wordmark h1 span{background-clip:text;-webkit-background-clip:text;color:transparent;
+  -webkit-text-fill-color:transparent;
+  text-shadow:0 1px 0 rgba(0,0,0,.25)}
+.wordmark h1 .u{background-image:linear-gradient(180deg, var(--brand-red-1) 0%, var(--brand-red-2) 55%, var(--brand-red-3) 100%)}
+.wordmark h1 .p{background-image:linear-gradient(180deg, var(--accent-ink) 0%, var(--accent) 55%, var(--accent) 100%)}
+.meta-strip{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;padding-bottom:16px;color:var(--ink-soft);font-size:12.5px}
+.meta-strip b{color:var(--ink);font-family:"IBM Plex Mono",monospace}
+.meta-strip .tag{padding:2px 8px;border-radius:99px;border:1px solid var(--line-strong);font-size:11px;letter-spacing:.03em;text-transform:uppercase}
+
+/* competition tabs */
+.tabs{display:flex;gap:4px;padding:10px 0;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:8px 16px;border-radius:9px;border:1px solid transparent;background:transparent;
+  color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;letter-spacing:.01em;transition:background .12s,color .12s}
+.tab:hover{background:var(--surface-2);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--surface-2);color:var(--accent-ink);border-color:var(--line-strong)}
+.tab .n{opacity:.6;font-family:"IBM Plex Mono",monospace;font-size:11px;margin-left:4px}
+
+main{padding:22px 0 60px}
+.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+@media (max-width:920px){.grid{grid-template-columns:1fr}}
+.stack{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-width:0}
+.card .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.card .hd h2{font-size:14px;font-weight:700;letter-spacing:.01em}
+.card .hd .sub{color:var(--ink-faint);font-size:11.5px}
+.card .bd{padding:14px 16px}
+.card .bd.flush{padding:0}
+
+/* record strip */
+.record-strip{display:flex;gap:10px;flex-wrap:wrap}
+.record-tile{flex:1 1 90px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:78px}
+.record-tile .v{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;line-height:1}
+.record-tile .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);margin-top:4px}
+
+/* match strip */
+.matchstrip{display:flex;gap:10px;overflow-x:auto;padding:14px 16px;scrollbar-width:thin}
+.mcard{flex:0 0 auto;width:132px;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;background:var(--surface-2);transition:border-color .12s,transform .12s}
+.mcard:hover{border-color:var(--line-strong)}
+.mcard[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.mcard .comp{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+.mcard .opp{font-weight:700;font-size:13px;margin:3px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard .score{display:flex;align-items:center;gap:6px}
+.mcard .score .r{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:11px;color:#0c1408}
+.mcard .score .gd{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft)}
+.mcard .date{font-size:10.5px;color:var(--ink-faint);margin-top:5px}
+.r.W{background:var(--w)} .r.D{background:var(--d)} .r.L{background:var(--l)}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+td:first-child,th.playercol{text-align:left;position:sticky;left:0;background:var(--surface)}
+.grouphead{text-align:center;background:var(--surface-2);color:var(--ink-soft);border-left:1px solid var(--line)}
+table.wide thead tr:first-child th{border-bottom:none}
+thead th{color:var(--ink-faint);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.04em;cursor:pointer;user-select:none}
+thead th:hover{color:var(--ink)}
+thead th.active{color:var(--accent-ink)}
+tbody tr:hover td{background:var(--surface-2)}
+tbody tr:hover td:first-child{background:var(--surface-2)}
+td.num,th.num{font-family:"IBM Plex Mono",monospace}
+.tablewrap{overflow-x:auto}
+.rank{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;
+  background:var(--surface-3);color:var(--ink-soft);font-size:10px;font-family:"IBM Plex Mono",monospace;margin-right:6px}
+.rank.g{background:var(--accent);color:#1a1206}
+
+/* leaderboard controls */
+.lb-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.chip{padding:5px 11px;border-radius:99px;border:1px solid var(--line-strong);background:var(--surface-2);
+  color:var(--ink-soft);font-size:12px;cursor:pointer;white-space:nowrap}
+.chip:hover{color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+input[type="search"]{background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;
+  padding:7px 10px;color:var(--ink);font-size:12.5px;min-width:200px;flex:1}
+input[type="search"]::placeholder{color:var(--ink-faint)}
+.dirbtn{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink-soft);border-radius:8px;
+  padding:6px 10px;cursor:pointer;font-size:12px}
+.dirbtn:hover{color:var(--ink)}
+
+.bar-bg{background:var(--surface-3);border-radius:4px;height:6px;overflow:hidden;margin-top:4px}
+.bar-fg{height:100%;border-radius:4px;background:var(--accent)}
+
+/* highs feed */
+.feed{display:flex;flex-direction:column}
+.feed-item{display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);align-items:flex-start}
+.feed-item:last-child{border-bottom:none}
+.feed-ico{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;font-size:13px}
+.feed-txt{font-size:12.5px;line-height:1.45}
+.feed-txt b{color:var(--ink)}
+.feed-meta{color:var(--ink-faint);font-size:11px;margin-top:2px}
+
+.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.02em}
+.pill.comp-PL{background:#233a24;color:#9fd98a}
+.pill.comp-UCL{background:#1f2a44;color:#9db6f2}
+.pill.comp-EFLC{background:#3a2a12;color:#f0c27a}
+:root[data-theme="light"] .pill.comp-PL, @media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .pill.comp-PL{background:#e3f3dd;color:#2a6b1e}}
+:root[data-theme="light"] .pill.comp-UCL{background:#e6ecfc;color:#28448f}
+:root[data-theme="light"] .pill.comp-EFLC{background:#fbead0;color:#8a5a08}
+
+.empty{padding:30px 16px;text-align:center;color:var(--ink-faint);font-size:13px}
+.foot{padding:24px 0 40px;color:var(--ink-faint);font-size:11.5px;text-align:center}
+.foot a{color:var(--ink-faint);text-decoration:underline}
+
+@media (max-width:640px){
+  .wrap{padding-inline:16px}
+  td,th{padding:6px 7px;font-size:12px}
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<header class="top">
+  <div class="brandband">
+    <div class="wrap">
+      <div class="brandrow">
+        <div class="wordmark">
+          <span class="rule l"></span>
+          <h1><span class="u">Under</span> <span class="p">Pressure</span></h1>
+          <span class="rule r"></span>
+        </div>
+      </div>
+      <div class="meta-strip">
+        <span>Liverpool Pod &middot; Performance Dashboard</span>
+        <span class="tag" id="seasonTag">2026&ndash;27</span>
+        <span id="lastUpdated"></span>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Competition"></nav>
+  </div>
+</header>
+
+<main class="wrap" id="app">
+  <div class="empty">Loading match data&hellip;</div>
+</main>
+
+<div class="foot">Source data: pod-collated match sheets + public box scores where noted &middot; built for internal pod use</div>
+
+<script>
+(function(){
+"use strict";
+
+const FRIENDLY = {
+  "Running m [BS]": "Running m (Total)", "Running m [BW]": "Running m (P90)",
+  "Sprint m [BT]": "Sprint m (Total)", "Sprint m [BX]": "Sprint m (P90)",
+  "Sprints [BU]": "Sprints (Total)", "Sprints [BY]": "Sprints (P90)",
+  "Int + Rec": "Interceptions + Recoveries", "CIB": "Carries Into Box",
+  "XG (public)": "xG (public box score)", "SCA": "Shot-Creating Actions", "GCA": "Goal-Creating Actions",
+};
+function label(key){ return FRIENDLY[key] || key; }
+
+const HEADLINE_METRICS = [
+  "Goals","Assists","Shots","SOT","Big Chances","SCA","GCA","Successful Dribbles",
+  "Top Speed","Distance (P90)","Sprints (P90)","Touches","Completed Passes","Progressive Carries","Prog"
+];
+
+const QUICK_METRICS = ["Goals","Assists","Big Chances","SCA","Top Speed","Distance (P90)","Successful Dribbles","Touches"];
+
+// Full column set for the match box-score table, grouped the way the pod's
+// own sheet groups them -- this is the whole tracked metric set, not a
+// generic goals/assists/shots subset. Only groups/columns with data for the
+// selected match actually render (see renderMatchDetail).
+const METRIC_GROUPS = [
+  ["Playing time", ["Mins","Touches","% team"]],
+  ["Passing", ["Completed Passes","Attempts","%","% Progressive","CompFinal 3rd","non SP Passes into Box","Prog","Through balls","Successful Switch","Successful Cross","Failed Cross"]],
+  ["Carrying & dribbling", ["Carries","CIB","% touches carried","Prog Dist","Progressive Carries","Successful Dribbles","Attempted Dribbles","Dribb Success%"]],
+  ["Defending & duels", ["Int + Rec","Duels+/-","Aerials +/-","% Touches won","Possessions lost","Ball Retention %","% possession won","Tackles","Interceptions","Blocks"]],
+  ["Creating", ["SCA","GCA","Big Chances","Big Assist","Pen Wins","Hockey Assist","Touches inside box"]],
+  ["Shooting & goals", ["Shots","SOT","off Target","Blocked","Big Chance Scored","Big Chance missed","Pens Scored","Pens Missed","Goals","Assists","Equaliser","Go Ahead"]],
+  ["Expected", ["XG shots","XG assist","XG2","XT","XGBuild Up","PC","PC90","XGB100","XGT100","XG (public)"]],
+  ["Goalkeeping", ["Shots Faced","Saves","PSxG","Goals Conceded"]],
+  ["Physical", ["Top Speed","Distance (Total)","Running m [BS]","Sprint m [BT]","Sprints [BU]","Distance (P90)","Running m [BW]","Sprint m [BX]","Sprints [BY]","%HS"]],
+  ["Discipline & other", ["Error","DECT Goal","Ofsides","Yellow Cards","Rating","Player of the Match"]],
+];
+
+const TABS = [
+  { id:"PL",   label:"Premier League", kind:"club", test:c => c === "PL" },
+  { id:"CL",   label:"Champions League", kind:"club", test:c => c === "UCL" },
+  { id:"CUPS", label:"Cups", kind:"club", test:c => c === "EFLC" },
+  { id:"LFC",  label:"LFC - All Club", kind:"club", test:() => true },
+  { id:"INTL", label:"Internationals", kind:"intl" },
+  { id:"ALL",  label:"All Football", kind:"all" },
+];
+
+let DATA = null;
+let activeTab = "LFC";
+let selectedMatch = null; // tab (name) of the match card selected, per active tab
+
+function fmtDate(iso){
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short" });
+}
+
+function esc(s){ return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
+
+function matchesForTab(tab){
+  if (tab.kind !== "club") return [];
+  return DATA.matches_meta.filter(m => tab.test(m.competition));
+}
+function recordsForTab(tab){
+  if (tab.kind !== "club") return [];
+  return DATA.match_records.filter(r => tab.test(r.competition));
+}
+
+// ---------- header / tabs ----------
+function renderTabs(){
+  const nav = document.getElementById("tabs");
+  nav.innerHTML = "";
+  TABS.forEach(t => {
+    const btn = document.createElement("button");
+    btn.className = "tab"; btn.type = "button"; btn.setAttribute("role","tab");
+    btn.setAttribute("aria-selected", String(t.id === activeTab));
+    let n = "";
+    if (t.kind === "club") n = matchesForTab(t).length;
+    else if (t.kind === "intl") n = Object.keys(DATA.internationals || {}).length;
+    btn.innerHTML = `${esc(t.label)}${n !== "" ? `<span class="n">${n}</span>` : ""}`;
+    btn.addEventListener("click", () => { activeTab = t.id; selectedMatch = null; render(); });
+    nav.appendChild(btn);
+  });
+}
+
+// ---------- squad summary (safe-sum aggregate over match_records) ----------
+const SUM_COLS = [
+  ["Games","Games"],["Mins","Mins"],["Goals","Gls"],["Assists","Ast"],
+  ["Shots","Sh"],["SOT","SoT"],["Big Chances","BC"],["Touches","Tch"]
+];
+function buildSquadSummary(records){
+  const byPlayer = {};
+  for (const r of records){
+    const p = byPlayer[r.player] || (byPlayer[r.player] = { player:r.player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, _cmp:0, _att:0, _ratings:[] });
+    p.Games += 1;
+    for (const k of ["Mins","Goals","Assists","Shots","SOT","Big Chances","Touches"]){
+      const v = r.stats[k];
+      if (typeof v === "number") p[k] += v;
+    }
+    if (typeof r.stats["Completed Passes"] === "number") p._cmp += r.stats["Completed Passes"];
+    if (typeof r.stats["Attempts"] === "number") p._att += r.stats["Attempts"];
+    if (typeof r.stats["Rating"] === "number") p._ratings.push(r.stats["Rating"]);
+  }
+  return Object.values(byPlayer).map(p => ({
+    ...p,
+    PassPct: p._att ? Math.round((p._cmp / p._att) * 1000) / 10 : null,
+    RatingAvg: p._ratings.length ? Math.round((p._ratings.reduce((a,b)=>a+b,0) / p._ratings.length) * 100) / 100 : null,
+  }));
+}
+
+let squadSort = { col: "Mins", dir: -1 };
+function renderSquadSummary(records){
+  const rows = buildSquadSummary(records);
+  const cols = [...SUM_COLS, ["PassPct","Pass %"], ["RatingAvg","Rtg"]];
+  rows.sort((a,b) => {
+    const av = a[squadSort.col] ?? -Infinity, bv = b[squadSort.col] ?? -Infinity;
+    if (squadSort.col === "player") return squadSort.dir === -1 ? String(bv).localeCompare(String(av)) : String(av).localeCompare(String(bv));
+    return squadSort.dir === -1 ? (bv - av) : (av - bv);
+  });
+  let head = `<th class="playercol">Player</th>` + cols.map(([k,l]) => `<th class="num${squadSort.col===k?' active':''}" data-col="${k}">${esc(l)}</th>`).join("");
+  let body = rows.map(r => `<tr><td>${esc(r.player)}</td>` + cols.map(([k]) => {
+    const v = r[k];
+    return `<td class="num">${v===null||v===undefined ? "&ndash;" : (Number.isInteger(v)?v:v.toFixed( k==='PassPct'||k==='RatingAvg' ? (k==='RatingAvg'?2:1) : 0))}</td>`;
+  }).join("") + `</tr>`).join("");
+  if (!rows.length) return `<div class="empty">No matches in this competition yet.</div>`;
+  return `<div class="tablewrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+// ---------- record strip ----------
+function renderRecordStrip(matches){
+  let W=0,D=0,L=0,GF=0,GA=0;
+  matches.forEach(m => { W += m.result==="W"; D += m.result==="D"; L += m.result==="L"; GF += m.score_for||0; GA += m.score_against||0; });
+  const tiles = [["P",matches.length],["W",W],["D",D],["L",L],["GF",GF],["GA",GA],["GD", (GF-GA)>0?`+${GF-GA}`:(GF-GA)]];
+  return `<div class="record-strip">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v mono">${v}</div><div class="l">${l}</div></div>`).join("")}</div>`;
+}
+
+// ---------- match strip + detail ----------
+function renderMatchStrip(matches, tab){
+  if (!matches.length) return "";
+  const sorted = [...matches].sort((a,b) => a.date.localeCompare(b.date));
+  if (!selectedMatch || !sorted.find(m=>m.tab===selectedMatch)) selectedMatch = sorted[sorted.length-1].tab;
+  return `<div class="matchstrip">${sorted.map(m => `
+    <div class="mcard" role="button" tabindex="0" aria-pressed="${m.tab===selectedMatch}" data-match="${esc(m.tab)}">
+      <div class="comp">${esc(m.competition)} &middot; ${esc(m.venue==='H'?'Home':m.venue==='A'?'Away':'Neutral')}</div>
+      <div class="opp">${esc(m.opponent)}</div>
+      <div class="score"><span class="r ${m.result}">${m.result}</span><span class="gd mono">${m.score_for}&ndash;${m.score_against}</span></div>
+      <div class="date">${fmtDate(m.date)}</div>
+    </div>`).join("")}</div>`;
+}
+
+function renderMatchDetail(matches, records){
+  const m = matches.find(x => x.tab === selectedMatch);
+  if (!m) return `<div class="empty">Select a match above.</div>`;
+  const recs = records.filter(r => r.match === m.tab).sort((a,b) => (b.stats.Mins||0) - (a.stats.Mins||0));
+
+  const present = new Set();
+  recs.forEach(r => Object.keys(r.stats).forEach(k => present.add(k)));
+  const groups = METRIC_GROUPS
+    .map(([name, cols]) => [name, cols.filter(c => present.has(c))])
+    .filter(([,cols]) => cols.length);
+  // any tracked metric not covered by a named group still gets shown, under "Other"
+  const grouped = new Set(groups.flatMap(([,cols]) => cols));
+  const leftover = [...present].filter(c => !grouped.has(c));
+  if (leftover.length) groups.push(["Other", leftover]);
+
+  const groupRow = `<tr><th rowspan="2" class="playercol">Player</th>` + groups.map(([name, cols]) => `<th colspan="${cols.length}" class="grouphead">${esc(name)}</th>`).join("") + `</tr>`;
+  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num">${esc(label(c))}</th>`)).join("") + `</tr>`;
+  const head = groupRow + colRow;
+  const allCols = groups.flatMap(([,cols]) => cols);
+  let body = recs.map(r => `<tr><td>${esc(r.player)}</td>` + allCols.map(c => {
+    const v = r.stats[c];
+    return `<td class="num">${v===undefined? "&ndash;" : v}</td>`;
+  }).join("") + `</tr>`).join("");
+
+  const events = (DATA.season_high_events || []).filter(e => e.match === m.tab && HEADLINE_METRICS.includes(e.metric));
+  const highsHtml = events.length
+    ? `<div class="bd" style="padding-top:0">${events.map(e => `
+        <div class="feed-item" style="padding:8px 0">
+          <div class="feed-ico">\u{1F525}</div>
+          <div class="feed-txt"><b>${esc(e.player)}</b> hit a season high: <b>${e.value}</b> ${esc(label(e.metric))}</div>
+        </div>`).join("")}</div>`
+    : `<div class="empty" style="padding:16px">No season highs set in this match (within the headline metric set).</div>`;
+
+  return `
+    <div class="tablewrap">${recs.length ? `<table class="wide"><thead>${head}</thead><tbody>${body}</tbody></table>` : `<div class="empty">No player data for this match${m.source ? " beyond the public box score" : ""}.</div>`}</div>
+    ${m.source ? `<div class="empty" style="padding:10px 16px 0;text-align:left;font-size:11px">${esc(m.source)}</div>` : ""}
+    <div class="hd" style="margin-top:6px"><h2>Season highs set here</h2></div>
+    ${highsHtml}
+  `;
+}
+
+// ---------- leaderboard explorer (single-match, per-record) ----------
+let lbMetric = "Goals";
+let lbDir = -1;
+function renderLeaderboard(records){
+  const metricsAvail = new Set();
+  records.forEach(r => Object.keys(r.stats).forEach(k => { if (typeof r.stats[k] === "number") metricsAvail.add(k); }));
+  const metrics = [...metricsAvail].sort();
+  if (!metrics.includes(lbMetric)) lbMetric = metrics.includes("Goals") ? "Goals" : metrics[0];
+
+  const entries = records
+    .filter(r => typeof r.stats[lbMetric] === "number")
+    .map(r => ({ player:r.player, match:r.match, competition:r.competition, date:r.date, value:r.stats[lbMetric] }))
+    .sort((a,b) => lbDir === -1 ? (b.value - a.value) : (a.value - b.value));
+  const top = entries.slice(0, 10);
+  const max = top.length ? Math.max(...top.map(e => Math.abs(e.value)), 1) : 1;
+  const seasonHigh = DATA.season_high_events.filter(e => e.metric === lbMetric).slice(-1)[0];
+
+  const rows = top.map((e,i) => `
+    <tr>
+      <td><span class="rank${i===0 && lbDir===-1 ?' g':''}">${i+1}</span>${esc(e.player)}</td>
+      <td class="num">${e.value}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4, Math.abs(e.value)/max*100)}%"></div></div></td>
+      <td><span class="pill comp-${esc(e.competition)}">${esc(e.competition)}</span></td>
+      <td>${esc(e.match)}</td>
+      <td>${fmtDate(e.date)}</td>
+    </tr>`).join("");
+
+  return `
+    <div class="lb-controls">
+      <input type="search" id="lbSearch" list="metricList" placeholder="Search a metric&hellip;" value="${esc(label(lbMetric))}">
+      <datalist id="metricList">${metrics.map(m => `<option value="${esc(label(m))}">`).join("")}</datalist>
+      <button class="dirbtn" id="lbDirBtn">${lbDir===-1 ? "Highest first" : "Lowest first"}</button>
+    </div>
+    <div class="lb-controls" style="margin-bottom:14px">
+      ${QUICK_METRICS.map(m => `<button class="chip" data-metric="${esc(m)}" aria-pressed="${m===lbMetric}">${esc(label(m))}</button>`).join("")}
+    </div>
+    ${seasonHigh ? `<div class="empty" style="padding:8px 0 14px;text-align:left;color:var(--ink-soft)">Season high so far: <b style="color:var(--ink)">${esc(seasonHigh.player)}</b> &mdash; ${seasonHigh.value} vs ${esc(seasonHigh.opponent)} (${fmtDate(seasonHigh.date)})</div>` : ""}
+    <div class="tablewrap"><table>
+      <thead><tr><th class="playercol">Player</th><th class="num">${esc(label(lbMetric))}</th><th>Comp</th><th>Match</th><th>Date</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5" class="empty">No data for this metric in this competition scope.</td></tr>`}</tbody>
+    </table></div>
+  `;
+}
+
+// ---------- season rate leaderboard (from Dashboard tab totals) ----------
+let srMetric = "Conv Rate%";
+function renderSeasonRates(){
+  const totals = DATA.dashboard_season_totals || {};
+  const metricsAvail = new Set();
+  Object.values(totals).forEach(p => Object.keys(p).forEach(k => { if (typeof p[k] === "number" && !["Height","Age 1 Aug"].includes(k)) metricsAvail.add(k); }));
+  const metrics = [...metricsAvail].sort();
+  if (!metrics.includes(srMetric)) srMetric = metrics[0];
+
+  const entries = Object.entries(totals)
+    .filter(([,p]) => typeof p[srMetric] === "number")
+    .map(([player,p]) => ({ player, value:p[srMetric] }))
+    .sort((a,b) => b.value - a.value);
+  const top = entries.slice(0,10);
+  const max = top.length ? Math.max(...top.map(e=>Math.abs(e.value)),1) : 1;
+  const rows = top.map((e,i) => `
+    <tr><td><span class="rank${i===0?' g':''}">${i+1}</span>${esc(e.player)}</td>
+    <td class="num">${e.value}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4,Math.abs(e.value)/max*100)}%"></div></div></td></tr>`).join("");
+
+  return `
+    <div class="lb-controls">
+      <input type="search" id="srSearch" list="srMetricList" placeholder="Search a season metric&hellip;" value="${esc(label(srMetric))}">
+      <datalist id="srMetricList">${metrics.map(m => `<option value="${esc(label(m))}">`).join("")}</datalist>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num">${esc(label(srMetric))}</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="2" class="empty">No data.</td></tr>`}</tbody></table></div>
+  `;
+}
+
+// ---------- season highs feed ----------
+function renderHighsFeed(records){
+  const inScopeMatches = new Set(records.map(r => r.match));
+  const events = (DATA.season_high_events || [])
+    .filter(e => HEADLINE_METRICS.includes(e.metric) && inScopeMatches.has(e.match))
+    .slice().reverse().slice(0, 30);
+  if (!events.length) return `<div class="empty">No headline records yet in this competition.</div>`;
+  return `<div class="feed">${events.map(e => `
+    <div class="feed-item">
+      <div class="feed-ico">\u{1F525}</div>
+      <div>
+        <div class="feed-txt"><b>${esc(e.player)}</b> &mdash; <b>${e.value}</b> ${esc(label(e.metric))}, a new season high</div>
+        <div class="feed-meta">vs ${esc(e.opponent)} <span class="pill comp-${esc(e.competition)}">${esc(e.competition)}</span> &middot; ${fmtDate(e.date)}</div>
+      </div>
+    </div>`).join("")}</div>`;
+}
+
+// ---------- internationals ----------
+function renderInternationals(){
+  const rows = Object.entries(DATA.internationals || {})
+    .map(([player,v]) => ({ player, Mins:v.Mins||0, Goals:v.Goals||0, Assists:v.Assists||0 }))
+    .sort((a,b) => b.Goals - a.Goals || b.Assists - a.Assists || b.Mins - a.Mins);
+  if (!rows.length) return `<div class="empty">No international caps logged yet this window.</div>`;
+  return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num">Mins</th><th class="num">Gls</th><th class="num">Ast</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${esc(r.player)}</td><td class="num">${r.Mins}</td><td class="num">${r.Goals}</td><td class="num">${r.Assists}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderAllCombined(records){
+  const club = {};
+  buildSquadSummary(records).forEach(p => club[p.player] = p);
+  const intl = DATA.internationals || {};
+  const players = new Set([...Object.keys(club), ...Object.keys(intl)]);
+  const rows = [...players].map(player => {
+    const c = club[player] || { Mins:0, Goals:0, Assists:0 };
+    const i = intl[player] || { Mins:0, Goals:0, Assists:0 };
+    return { player, cMins:c.Mins||0, cGoals:c.Goals||0, cAssists:c.Assists||0,
+      iMins:i.Mins||0, iGoals:i.Goals||0, iAssists:i.Assists||0,
+      tGoals:(c.Goals||0)+(i.Goals||0), tAssists:(c.Assists||0)+(i.Assists||0) };
+  }).sort((a,b) => b.tGoals - a.tGoals || b.tAssists - a.tAssists);
+  return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th>
+    <th class="num">Club Gls</th><th class="num">Club Ast</th>
+    <th class="num">Intl Gls</th><th class="num">Intl Ast</th>
+    <th class="num">Total Gls</th><th class="num">Total Ast</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${esc(r.player)}</td>
+      <td class="num">${r.cGoals}</td><td class="num">${r.cAssists}</td>
+      <td class="num">${r.iGoals}</td><td class="num">${r.iAssists}</td>
+      <td class="num">${r.tGoals}</td><td class="num">${r.tAssists}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+// ---------- main render ----------
+function render(){
+  renderTabs();
+  const tab = TABS.find(t => t.id === activeTab);
+  const app = document.getElementById("app");
+
+  if (tab.kind === "intl"){
+    app.innerHTML = `
+      <div class="card"><div class="hd"><h2>International caps</h2><span class="sub">Goals &amp; assists &middot; current window</span></div>
+      <div class="bd">${renderInternationals()}</div></div>`;
+    return;
+  }
+
+  const records = tab.kind === "all" ? recordsForTab(TABS.find(t=>t.id==="LFC")) : recordsForTab(tab);
+  const matches = tab.kind === "all" ? matchesForTab(TABS.find(t=>t.id==="LFC")) : matchesForTab(tab);
+
+  app.innerHTML = `
+    <div class="stack" style="margin-bottom:18px">${renderRecordStrip(matches)}</div>
+    <div class="grid">
+      <div class="stack">
+        <div class="card">
+          <div class="hd"><h2>Matches</h2><span class="sub">tap a match for the box score</span></div>
+          <div class="bd flush">${renderMatchStrip(matches, tab)}</div>
+          <div class="bd" id="matchDetail">${renderMatchDetail(matches, records)}</div>
+        </div>
+        <div class="card">
+          <div class="hd"><h2>Squad season summary</h2><span class="sub">${esc(tab.label)}</span></div>
+          <div class="bd" id="squadSummary">${renderSquadSummary(records)}</div>
+        </div>
+        ${tab.kind === "all" ? `<div class="card"><div class="hd"><h2>Club + international totals</h2></div><div class="bd">${renderAllCombined(records)}</div></div>` : ""}
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="hd"><h2>Single-match leaderboard</h2><span class="sub">best individual match performances</span></div>
+          <div class="bd" id="lbBox">${renderLeaderboard(records)}</div>
+        </div>
+        ${(tab.id === "LFC" || tab.id === "ALL") ? `
+        <div class="card">
+          <div class="hd"><h2>Season rate leaderboard</h2><span class="sub">from the pod's season totals</span></div>
+          <div class="bd" id="srBox">${renderSeasonRates()}</div>
+        </div>` : ""}
+        <div class="card">
+          <div class="hd"><h2>Season-high feed</h2><span class="sub">records as they happened</span></div>
+          <div class="bd flush">${renderHighsFeed(records)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+  wireInteractions(records, matches, tab);
+}
+
+function wireInteractions(records, matches, tab){
+  document.querySelectorAll(".mcard").forEach(el => {
+    el.addEventListener("click", () => { selectedMatch = el.dataset.match; render(); });
+    el.addEventListener("keydown", e => { if (e.key==="Enter"||e.key===" "){ e.preventDefault(); selectedMatch = el.dataset.match; render(); } });
+  });
+
+  const lbSearch = document.getElementById("lbSearch");
+  if (lbSearch){
+    lbSearch.addEventListener("change", () => {
+      const metricsAvail = new Set();
+      records.forEach(r => Object.keys(r.stats).forEach(k => { if (typeof r.stats[k] === "number") metricsAvail.add(k); }));
+      const found = [...metricsAvail].find(m => label(m).toLowerCase() === lbSearch.value.trim().toLowerCase());
+      if (found){ lbMetric = found; document.getElementById("lbBox").innerHTML = renderLeaderboard(records); wireInteractions(records, matches, tab); }
+    });
+  }
+  const lbDirBtn = document.getElementById("lbDirBtn");
+  if (lbDirBtn) lbDirBtn.addEventListener("click", () => { lbDir *= -1; document.getElementById("lbBox").innerHTML = renderLeaderboard(records); wireInteractions(records, matches, tab); });
+
+  document.querySelectorAll(".chip[data-metric]").forEach(el => {
+    el.addEventListener("click", () => { lbMetric = el.dataset.metric; lbDir = -1; document.getElementById("lbBox").innerHTML = renderLeaderboard(records); wireInteractions(records, matches, tab); });
+  });
+
+  const srSearch = document.getElementById("srSearch");
+  if (srSearch){
+    srSearch.addEventListener("change", () => {
+      const totals = DATA.dashboard_season_totals || {};
+      const metricsAvail = new Set();
+      Object.values(totals).forEach(p => Object.keys(p).forEach(k => { if (typeof p[k]==="number" && !["Height","Age 1 Aug"].includes(k)) metricsAvail.add(k); }));
+      const found = [...metricsAvail].find(m => label(m).toLowerCase() === srSearch.value.trim().toLowerCase());
+      if (found){ srMetric = found; document.getElementById("srBox").innerHTML = renderSeasonRates(); wireInteractions(records, matches, tab); }
+    });
+  }
+
+  document.querySelectorAll("#squadSummary thead th[data-col]").forEach(el => {
+    el.addEventListener("click", () => {
+      const col = el.dataset.col;
+      squadSort.dir = (squadSort.col === col) ? squadSort.dir * -1 : -1;
+      squadSort.col = col;
+      document.getElementById("squadSummary").innerHTML = renderSquadSummary(records);
+      wireInteractions(records, matches, tab);
+    });
+  });
+}
+
+// ---------- boot ----------
+fetch("under-pressure-data.json").then(r => r.json()).then(data => {
+  DATA = data;
+  const dt = new Date();
+  document.getElementById("lastUpdated").textContent = "data as of latest pull";
+  render();
+}).catch(err => {
+  document.getElementById("app").innerHTML = `<div class="empty">Couldn't load match data (${esc(err.message)}). Try refreshing.</div>`;
+});
+
+})();
+</script>
