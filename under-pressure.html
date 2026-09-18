@@ -619,14 +619,26 @@ function wireInteractions(records, matches, tab){
   });
 }
 
+// ---------- iframe auto-height (for embedding on simonbrundish.com) ----------
+// Posts this page's height to the parent window whenever content changes, so
+// a parent page can resize the <iframe> to fit -- no fixed height, no inner
+// scrollbar. No-ops when the page isn't embedded in an iframe.
+function broadcastHeight(){
+  if (window.self === window.top) return;
+  window.parent.postMessage({ upPressureHeight: document.documentElement.scrollHeight }, "*");
+}
+new ResizeObserver(broadcastHeight).observe(document.documentElement);
+
 // ---------- boot ----------
 fetch("under-pressure-data.json").then(r => r.json()).then(data => {
   DATA = data;
   const dt = new Date();
   document.getElementById("lastUpdated").textContent = "data as of latest pull";
   render();
+  broadcastHeight();
 }).catch(err => {
   document.getElementById("app").innerHTML = `<div class="empty">Couldn't load match data (${esc(err.message)}). Try refreshing.</div>`;
+  broadcastHeight();
 });
 
 })();
