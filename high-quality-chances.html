@@ -109,6 +109,27 @@ h2.sec{font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppe
   font-family:"IBM Plex Mono",monospace;color:var(--ink);mix-blend-mode:difference}
 .bnum{font-family:"IBM Plex Mono",monospace;font-size:11px}
 
+/* ---- scatter ---- */
+.scatterwrap{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px 10px;box-shadow:var(--shadow)}
+.scatterhint{font-size:11.5px;color:var(--ink-faint);margin:-2px 0 10px}
+.scatter{width:100%;height:auto;display:block}
+.scatter .gl{stroke:var(--line);stroke-width:1}
+.scatter .gl.avg{stroke:var(--line-strong)}
+.scatter .gtx{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--ink-faint)}
+.scatter .qtx{font-family:"Archivo",sans-serif;font-size:9.5px;fill:var(--ink-faint)}
+.scatter .axislab{font-size:11px;font-weight:600;fill:var(--ink-soft)}
+.scatter .dotg .hit{fill:transparent;cursor:pointer}
+.scatter .dotg .dot{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.scatter .dotg.active .dot{fill:var(--accent-ink);r:7}
+.scatter .dotg:focus{outline:none}
+.scatter .dotg.active .hit{stroke:var(--accent-ink);stroke-width:1.5;fill:none}
+.scatter .dotlbl{font-size:9.5px;font-weight:600;fill:var(--ink-soft);pointer-events:none}
+.stip{position:fixed;z-index:50;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;
+  padding:8px 11px;font-size:12px;box-shadow:var(--shadow);pointer-events:none;max-width:220px;line-height:1.5}
+.stip .tteam{font-weight:700;margin-bottom:2px}
+.stip b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+.stip .dim{font-size:11px}
+
 /* ---- table ---- */
 .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
 .tbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);
@@ -268,6 +289,99 @@ function barBlock(title, legend, rows){
   return `<h2 class="sec">${title}</h2><div class="barwrap"><div class="barlegend">${legend}</div>${rows}</div>`;
 }
 
+/* ---------- XY scatter (teams: creating vs converting) ---------- */
+const esc = s => String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function niceTicks(lo, hi, n){
+  const span = (hi-lo) || 1;
+  const rawStep = span/n;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const norm = rawStep/mag;
+  const step = (norm<1.5?1:norm<3?2:norm<7?5:10)*mag;
+  const start = Math.ceil(lo/step)*step;
+  const ticks=[];
+  for(let v=start; v<=hi+1e-9; v+=step) ticks.push(+v.toFixed(6));
+  return ticks;
+}
+function scatterBlock(teams){
+  const W=680,H=440,pad={l:50,r:20,t:16,b:44};
+  const xs = teams.map(t=>t.f_hqc_share||0), ys = teams.map(t=>t.f_hqc_cr||0);
+  const xMin=Math.min(...xs), xMax=Math.max(...xs), yMin=Math.min(...ys), yMax=Math.max(...ys);
+  const xPad=(xMax-xMin)*0.15||2, yPad=(yMax-yMin)*0.15||2;
+  const x0=Math.max(0,xMin-xPad), x1=xMax+xPad, y0=Math.max(0,yMin-yPad), y1=yMax+yPad;
+  const sx = v => pad.l + (v-x0)/(x1-x0) * (W-pad.l-pad.r);
+  const sy = v => H-pad.b - (v-y0)/(y1-y0) * (H-pad.t-pad.b);
+  const avgX = xs.reduce((a,b)=>a+b,0)/xs.length;
+  const avgY = ys.reduce((a,b)=>a+b,0)/ys.length;
+
+  const gridlines = [
+    ...niceTicks(x0,x1,6).map(v=>`<line x1="${sx(v)}" x2="${sx(v)}" y1="${pad.t}" y2="${H-pad.b}" class="gl"/><text x="${sx(v)}" y="${H-pad.b+15}" class="gtx" text-anchor="middle">${fmt(v,0)}%</text>`),
+    ...niceTicks(y0,y1,5).map(v=>`<line x1="${pad.l}" x2="${W-pad.r}" y1="${sy(v)}" y2="${sy(v)}" class="gl"/><text x="${pad.l-7}" y="${sy(v)+3}" class="gtx" text-anchor="end">${fmt(v,0)}%</text>`)
+  ].join("");
+  const avgLines = `<line x1="${sx(avgX)}" x2="${sx(avgX)}" y1="${pad.t}" y2="${H-pad.b}" class="gl avg"/>
+    <line x1="${pad.l}" x2="${W-pad.r}" y1="${sy(avgY)}" y2="${sy(avgY)}" class="gl avg"/>`;
+
+  const byX = teams.slice().sort((a,b)=>(b.f_hqc_share||0)-(a.f_hqc_share||0));
+  const byY = teams.slice().sort((a,b)=>(b.f_hqc_cr||0)-(a.f_hqc_cr||0));
+  const labelSet = new Set([byX[0], byX[byX.length-1], byY[0], byY[byY.length-1]].filter(Boolean).map(t=>t.team));
+
+  const dots = teams.map(t=>{
+    const cx=sx(t.f_hqc_share||0), cy=sy(t.f_hqc_cr||0);
+    const lbl = labelSet.has(t.team) ? `<text x="${cx}" y="${cy-10}" class="dotlbl" text-anchor="middle">${esc(t.team)}</text>` : "";
+    return `<g class="dotg" tabindex="0" data-team="${esc(t.team)}" data-x="${fmt(t.f_hqc_share,1)}" data-y="${fmt(t.f_hqc_cr,1)}" data-hqc="${int(t.f_hqc)}" data-shots="${int(t.f_shots)}">
+      <circle cx="${cx}" cy="${cy}" r="13" class="hit"/>
+      <circle cx="${cx}" cy="${cy}" r="5" class="dot"/>
+      ${lbl}
+    </g>`;
+  }).join("");
+
+  const midY=(pad.t+H-pad.b)/2;
+  return `<h2 class="sec">Creating vs converting high-quality chances</h2>
+    <p class="scatterhint">Each dot is a team. Right = creates a bigger share of high-quality chances; up = converts them at a higher rate.
+      Solid guide lines mark the average across qualified teams.</p>
+    <div class="scatterwrap">
+      <svg viewBox="0 0 ${W} ${H}" class="scatter" role="img" aria-label="Teams plotted by HQC share of shots against HQC conversion rate">
+        ${gridlines}${avgLines}
+        <text x="${pad.l+4}" y="${pad.t+12}" class="qtx" text-anchor="start">efficient, low volume</text>
+        <text x="${W-pad.r-4}" y="${pad.t+12}" class="qtx" text-anchor="end">creates &amp; finishes</text>
+        <text x="${pad.l+4}" y="${H-pad.b-8}" class="qtx" text-anchor="start">struggles both ends</text>
+        <text x="${W-pad.r-4}" y="${H-pad.b-8}" class="qtx" text-anchor="end">creates plenty, wasteful</text>
+        ${dots}
+        <text x="${(pad.l+W-pad.r)/2}" y="${H-6}" class="axislab" text-anchor="middle">HQC share of shots — creating →</text>
+        <text x="14" y="${midY}" class="axislab" text-anchor="middle" transform="rotate(-90 14 ${midY})">HQC conversion rate — finishing →</text>
+      </svg>
+      <div class="stip" id="stip" hidden></div>
+    </div>`;
+}
+function wireScatter(container){
+  const tip = container.querySelector("#stip");
+  if(!tip) return;
+  const position = evt=>{
+    if(!evt) return;
+    tip.style.left = Math.min(evt.clientX+14, window.innerWidth-236)+"px";
+    tip.style.top = Math.max(evt.clientY-14,8)+"px";
+  };
+  const show = (g,evt)=>{
+    const d=g.dataset;
+    tip.replaceChildren();
+    const name=document.createElement("div"); name.className="tteam"; name.textContent=d.team; tip.appendChild(name);
+    const row=(label,val)=>{ const r=document.createElement("div"); r.textContent=label+": "; const b=document.createElement("b"); b.textContent=val; r.appendChild(b); return r; };
+    tip.appendChild(row("HQC share of shots", d.x+"%"));
+    tip.appendChild(row("HQC conversion", d.y+"%"));
+    const meta=document.createElement("div"); meta.className="dim"; meta.textContent=`${d.hqc} HQC of ${d.shots} shots`; tip.appendChild(meta);
+    tip.hidden=false;
+    position(evt);
+    g.classList.add("active");
+  };
+  const hide = g=>{ tip.hidden=true; g.classList.remove("active"); };
+  container.querySelectorAll(".dotg").forEach(g=>{
+    g.addEventListener("pointerenter", e=>show(g,e));
+    g.addEventListener("pointermove", e=>position(e));
+    g.addEventListener("pointerleave", ()=>hide(g));
+    g.addEventListener("focus", ()=>{ const r=g.querySelector(".dot").getBoundingClientRect(); show(g,{clientX:r.left,clientY:r.top}); });
+    g.addEventListener("blur", ()=>hide(g));
+  });
+}
+
 /* ================= TEAMS ================= */
 function renderTeams(){
   const sc = scope();
@@ -291,15 +405,7 @@ function renderTeams(){
     <div class="cards">${cards.map(([l,n,b,m])=>
       `<div class="card"><div class="lab">${l}</div><div class="name">${n}</div><div class="big">${b}</div><div class="meta">${m}</div></div>`).join("")}</div>`;
 
-  const bteams = qual.slice().sort((a,b)=>(b.f_hqc_cr??0)-(a.f_hqc_cr??0));
-  const maxv = Math.max(...bteams.map(t=>t.f_hqc_cr||0), 45);
-  html += barBlock("Conversion: high-quality vs everything else",
-    `<span><i class="swatch-a"></i>HQC conversion</span><span><i class="swatch-b"></i>Non-HQC conversion</span>`,
-    bteams.map(t=>`<div class="brow"><div class="bl" title="${t.team}">${t.team}</div>
-      <div class="bset">
-        <div class="bbar a"><span style="width:${100*(t.f_hqc_cr||0)/maxv}%"></span><em>${fmt(t.f_hqc_cr,1)}%</em></div>
-        <div class="bbar b"><span style="width:${100*(t.f_nhqc_cr||0)/maxv}%"></span><em>${fmt(t.f_nhqc_cr,1)}%</em></div>
-      </div></div>`).join(""));
+  html += scatterBlock(qual);
 
   const cols = [
     {k:"team",h:"Team",f:v=>v},
@@ -338,6 +444,7 @@ function renderTeams(){
   $("#view").innerHTML = html;
   $("#qonly").onchange = e=>{ state.qualOnly=e.target.checked; renderTeams(); };
   wireSort($("#view"), "teams", renderTeams);
+  wireScatter($("#view"));
 }
 
 /* ================= PLAYERS: shell + mode switch ================= */
