@@ -455,10 +455,14 @@ function renderSeasonRates(){
   const metrics = [...metricsAvail].sort();
   if (!metrics.includes(srMetric)) srMetric = metrics[0];
 
+  // "Mins per X" is a strike-rate stat -- fewer minutes between events is
+  // better, so these sort ascending (lowest first) while every other season
+  // rate sorts descending (highest first).
+  const lowerIsBetter = /^Mins per /i.test(srMetric);
   const entries = Object.entries(totals)
     .filter(([,p]) => typeof p[srMetric] === "number")
     .map(([player,p]) => ({ player, value:p[srMetric] }))
-    .sort((a,b) => b.value - a.value);
+    .sort((a,b) => lowerIsBetter ? (a.value - b.value) : (b.value - a.value));
   const top = entries.slice(0,10);
   const max = top.length ? Math.max(...top.map(e=>Math.abs(e.value)),1) : 1;
   const rows = top.map((e,i) => `
