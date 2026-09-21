@@ -630,7 +630,7 @@ function broadcastHeight(){
 new ResizeObserver(broadcastHeight).observe(document.documentElement);
 
 // ---------- boot ----------
-fetch("under-pressure-data.json").then(r => r.json()).then(data => {
+fetch("data.json").then(r => r.json()).then(data => {
   DATA = data;
   const dt = new Date();
   document.getElementById("lastUpdated").textContent = "data as of latest pull";
