@@ -137,6 +137,12 @@ tbody tr:hover td{background:var(--surface-2)}
 tbody tr:hover td:first-child{background:var(--surface-2)}
 td.num,th.num{font-family:"IBM Plex Mono",monospace}
 .tablewrap{overflow-x:auto}
+.wide-wrap{max-height:min(66vh,640px);overflow:auto}
+.wide-wrap thead th{position:sticky;background:var(--surface);z-index:2}
+.wide-wrap thead tr:first-child th{top:0;z-index:3}
+.wide-wrap thead tr:last-child th{top:24.5px}
+.wide-wrap thead tr:first-child th.playercol{z-index:4}
+.wide-wrap thead tr:first-child th.grouphead{background:var(--surface-2)}
 .rank{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;
   background:var(--surface-3);color:var(--ink-soft);font-size:10px;font-family:"IBM Plex Mono",monospace;margin-right:6px}
 .rank.g{background:var(--accent);color:#1a1206}
@@ -403,7 +409,7 @@ function renderMatchDetail(matches, records){
     : `<div class="empty" style="padding:16px">No season highs set in this match (within the headline metric set).</div>`;
 
   return `
-    <div class="tablewrap">${recs.length ? `<table class="wide"><thead>${head}</thead><tbody>${body}</tbody></table>` : `<div class="empty">No player data for this match${m.source ? " beyond the public box score" : ""}.</div>`}</div>
+    <div class="tablewrap wide-wrap">${recs.length ? `<table class="wide"><thead>${head}</thead><tbody>${body}</tbody></table>` : `<div class="empty">No player data for this match${m.source ? " beyond the public box score" : ""}.</div>`}</div>
     ${m.source ? `<div class="empty" style="padding:10px 16px 0;text-align:left;font-size:11px">${esc(m.source)}</div>` : ""}
     <div class="hd" style="margin-top:6px"><h2>Season highs set here</h2></div>
     ${highsHtml}
@@ -634,7 +640,15 @@ function wireInteractions(records, matches, tab){
       const col = el.dataset.col;
       matchSort.dir = (matchSort.col === col) ? matchSort.dir * -1 : -1;
       matchSort.col = col;
+      // re-rendering swaps in a fresh scroll container, which would otherwise
+      // snap back to the top-left -- capture and restore the scroll position
+      // so sorting doesn't force a re-scroll across the whole wide table.
+      const oldPanel = document.querySelector("#matchDetail .wide-wrap");
+      const scrollLeft = oldPanel ? oldPanel.scrollLeft : 0;
+      const scrollTop = oldPanel ? oldPanel.scrollTop : 0;
       document.getElementById("matchDetail").innerHTML = renderMatchDetail(matches, records);
+      const newPanel = document.querySelector("#matchDetail .wide-wrap");
+      if (newPanel){ newPanel.scrollLeft = scrollLeft; newPanel.scrollTop = scrollTop; }
       wireInteractions(records, matches, tab);
     });
   });
