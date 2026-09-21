@@ -2,66 +2,15 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
+  /* Always the dark green pod branding (matches Under Pressure) -- no
+     light/dark toggle, so it never falls back to a light theme regardless
+     of the viewer's system theme or embedding page. */
   :root {
-    color-scheme: light;
-    --bg: #fafafa;
-    --surface: #ffffff;
-    --surface-2: #efece4;
-    --surface-3: #e6e2d8;
-    --border: rgba(20,18,15,0.11);
-    --border-strong: rgba(20,18,15,0.20);
-    --text-primary: #16140f;
-    --text-secondary: #5c5749;
-    --text-muted: #8d8778;
-    --accent: #c8102e;
-    --accent-ink: #ffffff;
-    --accent-wash: rgba(200,16,46,0.09);
-    --accent-2: #1f6e45;
-    --accent-2-wash: rgba(31,110,69,0.10);
-    --pos-gk: #2a78d6;
-    --pos-def: #1baf7a;
-    --pos-mid: #b3790a;
-    --pos-fwd: #4a3aa7;
-    --pos-gk-wash: rgba(42,120,214,0.12);
-    --pos-def-wash: rgba(27,175,122,0.12);
-    --pos-mid-wash: rgba(179,121,10,0.14);
-    --pos-fwd-wash: rgba(74,58,167,0.12);
-    --shadow: 0 1px 2px rgba(20,18,15,0.04), 0 8px 24px -12px rgba(20,18,15,0.18);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --bg: #14110c;
-      --surface: #1c1811;
-      --surface-2: #242019;
-      --surface-3: #2d281f;
-      --border: rgba(255,255,255,0.09);
-      --border-strong: rgba(255,255,255,0.16);
-      --text-primary: #f6f3ec;
-      --text-secondary: #c6bfae;
-      --text-muted: #928c7b;
-      --accent: #e0273f;
-      --accent-ink: #ffffff;
-      --accent-wash: rgba(224,39,63,0.16);
-      --accent-2: #33a06a;
-      --accent-2-wash: rgba(51,160,106,0.16);
-      --pos-gk: #3987e5;
-      --pos-def: #26b881;
-      --pos-mid: #c98500;
-      --pos-fwd: #9085e9;
-      --pos-gk-wash: rgba(57,135,229,0.18);
-      --pos-def-wash: rgba(38,184,129,0.18);
-      --pos-mid-wash: rgba(201,133,0,0.18);
-      --pos-fwd-wash: rgba(144,133,233,0.18);
-      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 30px -14px rgba(0,0,0,0.6);
-    }
-  }
-  :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #14110c;
-    --surface: #1c1811;
-    --surface-2: #242019;
-    --surface-3: #2d281f;
+    --bg: #0a1f14;
+    --surface: #102a1c;
+    --surface-2: #16351f;
+    --surface-3: #1c4126;
     --border: rgba(255,255,255,0.09);
     --border-strong: rgba(255,255,255,0.16);
     --text-primary: #f6f3ec;
@@ -70,14 +19,14 @@
     --accent: #e0273f;
     --accent-ink: #ffffff;
     --accent-wash: rgba(224,39,63,0.16);
-    --accent-2: #33a06a;
-    --accent-2-wash: rgba(51,160,106,0.16);
+    --accent-2: #e8b339;
+    --accent-2-wash: rgba(232,179,57,0.16);
     --pos-gk: #3987e5;
-    --pos-def: #26b881;
+    --pos-def: #34d399;
     --pos-mid: #c98500;
     --pos-fwd: #9085e9;
     --pos-gk-wash: rgba(57,135,229,0.18);
-    --pos-def-wash: rgba(38,184,129,0.18);
+    --pos-def-wash: rgba(52,211,153,0.18);
     --pos-mid-wash: rgba(201,133,0,0.18);
     --pos-fwd-wash: rgba(144,133,233,0.18);
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 30px -14px rgba(0,0,0,0.6);

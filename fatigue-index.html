@@ -8,37 +8,19 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
+/* Always the dark green pod branding (matches Under Pressure) -- no
+   light/dark toggle, so it never falls back to a light theme regardless of
+   the viewer's system theme or embedding page. */
 :root{
-  --bg:#fafafa; --surface:#fff; --surface-2:#eef0ec; --sunk:#f7f8f5;
-  --ink:#161917; --ink-soft:#565f59; --ink-faint:#8a938c;
-  --line:#dde0da; --line-strong:#c7ccc3;
-  --accent:#6338f0; --accent-ink:#4a26c9; --accent-soft:#ece6fe;
-  --green:#1c8f4f; --green-soft:#dcf1e4;
-  --amber:#b26a06; --amber-soft:#fbeccf;
-  --red:#cf3546; --red-soft:#fae1e3;
-  --bar-track:#e7e9e3;
-  --shadow:0 1px 2px rgba(20,25,20,.05),0 10px 26px -16px rgba(20,25,20,.22);
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0b0d0b; --surface:#151815; --surface-2:#1c201c; --sunk:#101310;
-  --ink:#e9ece7; --ink-soft:#a4ada3; --ink-faint:#6f786e;
-  --line:#262b25; --line-strong:#374037;
+  color-scheme: dark;
+  --bg:#0a1f14; --surface:#102a1c; --surface-2:#16351f; --sunk:#0d2417;
+  --ink:#eef4ee; --ink-soft:#a9c2ad; --ink-faint:#6f8874;
+  --line:#20452e; --line-strong:#2c5a3c;
   --accent:#a992ff; --accent-ink:#c3b4ff; --accent-soft:#211a3d;
-  --green:#4ade80; --green-soft:#12331f;
+  --green:#4ade80; --green-soft:#1a4a2c;
   --amber:#e6a44b; --amber-soft:#3a2c12;
   --red:#f8737f; --red-soft:#3a1a1e;
-  --bar-track:#242924;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -18px rgba(0,0,0,.75);
-}}
-:root[data-theme="dark"]{
-  --bg:#0b0d0b; --surface:#151815; --surface-2:#1c201c; --sunk:#101310;
-  --ink:#e9ece7; --ink-soft:#a4ada3; --ink-faint:#6f786e;
-  --line:#262b25; --line-strong:#374037;
-  --accent:#a992ff; --accent-ink:#c3b4ff; --accent-soft:#211a3d;
-  --green:#4ade80; --green-soft:#12331f;
-  --amber:#e6a44b; --amber-soft:#3a2c12;
-  --red:#f8737f; --red-soft:#3a1a1e;
-  --bar-track:#242924;
+  --bar-track:#1c4126;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -18px rgba(0,0,0,.75);
 }
 *{box-sizing:border-box}
