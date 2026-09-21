@@ -14,34 +14,9 @@
   --shadow:0 1px 2px rgba(0,0,0,.35), 0 12px 30px -16px rgba(0,0,0,.7);
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#3fbf3f; --s7:#9085e9; --s8:#e66767;
 }
-@media (prefers-color-scheme: light){
-  :root:not([data-theme="dark"]){
-    color-scheme: light;
-    --bg:#fafafa; --surface:#ffffff; --surface-2:#eef1ea; --surface-3:#e6ebe0;
-    --ink:#0c1c12; --ink-soft:#4c5f4e; --ink-faint:#7c8c7e;
-    --line:#dde3d8; --line-strong:#c7d0bf;
-    --accent:#e8b339; --accent-ink:#7a5008; --accent-soft:#fbecc7;
-    --lime:#4f8f22;
-    --good:#0ca30c; --warn:#a66c0a; --serious:#c1502b; --critical:#c1352f;
-    --w:#0ca30c; --d:#a66c0a; --l:#c1352f;
-    --brand-red-1:#e8443b; --brand-red-2:#c1352f; --brand-red-3:#8f1f1f;
-    --shadow:0 1px 2px rgba(20,25,20,.05), 0 10px 26px -16px rgba(20,25,20,.22);
-    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
-  }
-}
-:root[data-theme="light"]{
-  color-scheme: light;
-  --bg:#fafafa; --surface:#ffffff; --surface-2:#eef1ea; --surface-3:#e6ebe0;
-  --ink:#0c1c12; --ink-soft:#4c5f4e; --ink-faint:#7c8c7e;
-  --line:#dde3d8; --line-strong:#c7d0bf;
-  --accent:#e8b339; --accent-ink:#7a5008; --accent-soft:#fbecc7;
-  --lime:#4f8f22;
-  --good:#0ca30c; --warn:#a66c0a; --serious:#c1502b; --critical:#c1352f;
-  --w:#0ca30c; --d:#a66c0a; --l:#c1352f;
-  --brand-red-1:#e8443b; --brand-red-2:#c1352f; --brand-red-3:#8f1f1f;
-  --shadow:0 1px 2px rgba(20,25,20,.05), 0 10px 26px -16px rgba(20,25,20,.22);
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
-}
+/* Under Pressure always stays on the dark green pod branding -- no light-mode
+   switch, so it never falls back to a cream background regardless of the
+   viewer's system theme or embedding page. */
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.5;
@@ -177,9 +152,6 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 .pill.comp-PL{background:#233a24;color:#9fd98a}
 .pill.comp-UCL{background:#1f2a44;color:#9db6f2}
 .pill.comp-EFLC{background:#3a2a12;color:#f0c27a}
-:root[data-theme="light"] .pill.comp-PL, @media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .pill.comp-PL{background:#e3f3dd;color:#2a6b1e}}
-:root[data-theme="light"] .pill.comp-UCL{background:#e6ecfc;color:#28448f}
-:root[data-theme="light"] .pill.comp-EFLC{background:#fbead0;color:#8a5a08}
 
 .empty{padding:30px 16px;text-align:center;color:var(--ink-faint);font-size:13px}
 .foot{padding:24px 0 40px;color:var(--ink-faint);font-size:11.5px;text-align:center}
