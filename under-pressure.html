@@ -131,6 +131,8 @@ table.wide thead tr:first-child th{border-bottom:none}
 thead th{color:var(--ink-faint);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.04em;cursor:pointer;user-select:none}
 thead th:hover{color:var(--ink)}
 thead th.active{color:var(--accent-ink)}
+td.active{background:var(--accent-soft)}
+tbody tr:hover td.active{background:var(--accent-soft)}
 tbody tr:hover td{background:var(--surface-2)}
 tbody tr:hover td:first-child{background:var(--surface-2)}
 td.num,th.num{font-family:"IBM Plex Mono",monospace}
@@ -362,13 +364,18 @@ function renderMatchStrip(matches, tab){
     </div>`).join("")}</div>`;
 }
 
+let matchSort = { col: "Mins", dir: -1 };
 function renderMatchDetail(matches, records){
   const m = matches.find(x => x.tab === selectedMatch);
   if (!m) return `<div class="empty">Select a match above.</div>`;
-  const recs = records.filter(r => r.match === m.tab).sort((a,b) => (b.stats.Mins||0) - (a.stats.Mins||0));
+  const recs = records.filter(r => r.match === m.tab).sort((a,b) => {
+    const av = a.stats[matchSort.col] ?? -Infinity, bv = b.stats[matchSort.col] ?? -Infinity;
+    return matchSort.dir === -1 ? (bv - av) : (av - bv);
+  });
 
   const present = new Set();
   recs.forEach(r => Object.keys(r.stats).forEach(k => present.add(k)));
+  if (!present.has(matchSort.col)) matchSort.col = "Mins";
   const groups = METRIC_GROUPS
     .map(([name, cols]) => [name, cols.filter(c => present.has(c))])
     .filter(([,cols]) => cols.length);
@@ -378,12 +385,12 @@ function renderMatchDetail(matches, records){
   if (leftover.length) groups.push(["Other", leftover]);
 
   const groupRow = `<tr><th rowspan="2" class="playercol">Player</th>` + groups.map(([name, cols]) => `<th colspan="${cols.length}" class="grouphead">${esc(name)}</th>`).join("") + `</tr>`;
-  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num">${esc(label(c))}</th>`)).join("") + `</tr>`;
+  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}">${esc(label(c))}</th>`)).join("") + `</tr>`;
   const head = groupRow + colRow;
   const allCols = groups.flatMap(([,cols]) => cols);
   let body = recs.map(r => `<tr><td>${esc(r.player)}</td>` + allCols.map(c => {
     const v = r.stats[c];
-    return `<td class="num">${v===undefined? "&ndash;" : v}</td>`;
+    return `<td class="num${matchSort.col===c?' active':''}">${v===undefined? "&ndash;" : v}</td>`;
   }).join("") + `</tr>`).join("");
 
   const events = (DATA.season_high_events || []).filter(e => e.match === m.tab && HEADLINE_METRICS.includes(e.metric));
@@ -618,6 +625,16 @@ function wireInteractions(records, matches, tab){
       squadSort.dir = (squadSort.col === col) ? squadSort.dir * -1 : -1;
       squadSort.col = col;
       document.getElementById("squadSummary").innerHTML = renderSquadSummary(records);
+      wireInteractions(records, matches, tab);
+    });
+  });
+
+  document.querySelectorAll("#matchDetail thead th[data-col]").forEach(el => {
+    el.addEventListener("click", () => {
+      const col = el.dataset.col;
+      matchSort.dir = (matchSort.col === col) ? matchSort.dir * -1 : -1;
+      matchSort.col = col;
+      document.getElementById("matchDetail").innerHTML = renderMatchDetail(matches, records);
       wireInteractions(records, matches, tab);
     });
   });
