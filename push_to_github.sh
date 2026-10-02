@@ -8,8 +8,9 @@ cd "$(dirname "$0")"
 cp ~/LiverpoolAnalysis/fatigue/fatigue_dashboard.html fatigue-index.html
 cp ~/LiverpoolAnalysis/perf_desk.html physical-performance-desk.html
 cp ~/LiverpoolAnalysis/dashboard.html high-quality-chances.html
+cp ~/LiverpoolAnalysis/city_counterfactual/city-counterfactual.html city-counterfactual.html
 
-git add fatigue-index.html physical-performance-desk.html high-quality-chances.html
+git add fatigue-index.html physical-performance-desk.html high-quality-chances.html city-counterfactual.html
 if git diff --cached --quiet; then
   echo "No changes to push -- dashboards already up to date on GitHub."
   exit 0
