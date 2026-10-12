@@ -202,7 +202,7 @@ const FRIENDLY = {
   "Running m [BS]": "Running m (Total)", "Running m [BW]": "Running m (P90)",
   "Sprint m [BT]": "Sprint m (Total)", "Sprint m [BX]": "Sprint m (P90)",
   "Sprints [BU]": "Sprints (Total)", "Sprints [BY]": "Sprints (P90)",
-  "Int + Rec": "Interceptions + Recoveries", "CIB": "Carries Into Box",
+  "Int + Rec": "Interceptions + Recoveries", "PAdj Presses": "PAdj Presses (possession-adjusted)", "CIB": "Carries Into Box",
   "XG (public)": "xG (public box score)", "SCA": "Shot-Creating Actions", "GCA": "Goal-Creating Actions",
 };
 function label(key){ return FRIENDLY[key] || key; }
@@ -226,6 +226,8 @@ const METRIC_GROUPS = [
   ["Creating", ["SCA","GCA","Big Chances","Big Assist","Pen Wins","Hockey Assist","Touches inside box"]],
   ["Shooting & goals", ["Shots","SOT","off Target","Blocked","Big Chance Scored","Big Chance missed","Pens Scored","Pens Missed","Goals","Assists","Equaliser","Go Ahead"]],
   ["Expected", ["XG shots","XG assist","XG2","XT","XGBuild Up","PC","PC90","XGB100","XGT100","XG (public)"]],
+  ["Off the ball: EPV", ["EPV Received","EPV Created","EPV Faced","EPV Lost %"]],
+  ["Off the ball: pressing", ["Total Presses","PAdj Presses","Successful Presses","Failed Presses","Counter Presses"]],
   ["Goalkeeping", ["Shots Faced","Saves","PSxG","Goals Conceded"]],
   ["Physical", ["Top Speed","Distance (Total)","Running m [BS]","Sprint m [BT]","Sprints [BU]","Distance (P90)","Running m [BW]","Sprint m [BX]","Sprints [BY]","%HS"]],
   ["Discipline & other", ["Error","DECT Goal","Ofsides","Yellow Cards","Rating","Player of the Match"]],
