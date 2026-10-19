@@ -455,7 +455,10 @@ function renderSeasonRates(){
   // Strike-rate stats ("Mins per X") and loss counts: lower is better, so they
   // default to lowest first. The direction button flips either way.
   const entries = Object.entries(totals)
-    .filter(([,p]) => validRate(srMetric, p[srMetric]))
+    // skip the sheet's squad "Total" row and anyone without minutes; when
+    // ranking highest first, a 0 is no performance worth listing
+    .filter(([player,p]) => !/^total$/i.test(player.trim()) && (p.Mins || 0) > 0
+      && validRate(srMetric, p[srMetric]) && !(srDir === -1 && p[srMetric] === 0))
     .map(([player,p]) => ({ player, value:p[srMetric], mins:p.Mins }))
     .sort((a,b) => srDir === -1 ? (b.value - a.value) : (a.value - b.value));
   const top = srAll ? entries : entries.slice(0,10);
