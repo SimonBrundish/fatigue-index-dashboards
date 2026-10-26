@@ -157,6 +157,40 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 .foot{padding:24px 0 40px;color:var(--ink-faint);font-size:11.5px;text-align:center}
 .foot a{color:var(--ink-faint);text-decoration:underline}
 
+/* fatigue index tab */
+.fi-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-bottom:14px}
+.fi-tiles .record-tile{flex:none}
+.fi-chart svg{display:block;width:100%;height:auto}
+.fi-chart .ax{stroke:var(--line-strong);stroke-width:1}
+.fi-chart .gl{stroke:var(--line);stroke-width:1}
+.fi-chart text{fill:var(--ink-faint);font-size:10px;font-family:"IBM Plex Mono",monospace}
+.fi-chart .avg{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:5 4;opacity:.75}
+.fi-chart .avglab{fill:var(--ink-soft)}
+.fi-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-top:8px}
+.fi-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.fi-legend i.dot{width:9px;height:9px;border-radius:50%}
+.fi-row{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;align-items:start}
+@media (max-width:700px){.fi-row{grid-template-columns:1fr}}
+.fi-donut{display:flex;flex-direction:column;align-items:center;gap:10px}
+.fi-donut svg{width:170px;height:170px}
+.fi-donut .c{fill:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600}
+.fi-donut .cl{fill:var(--ink-faint);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em}
+.fi-apps{width:100%;font-size:12px}
+.fi-apps div{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--line)}
+.fi-apps div:last-child{border-bottom:none}
+.fi-apps span:first-child{display:flex;align-items:center;gap:7px;color:var(--ink-soft)}
+.fi-apps i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.fi-seasons{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:6px}
+.fi-seasons .b{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.fi-seasons .bar{width:100%;max-width:34px;background:var(--surface-3);border-radius:4px 4px 0 0}
+.fi-seasons .bar.cur{background:var(--accent)}
+.fi-seasons .bar.proj{background:transparent;border:1px dashed var(--accent);border-bottom:none}
+.fi-seasons .v{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--ink-soft);margin-bottom:3px}
+.fi-seasons .s{font-size:9.5px;color:var(--ink-faint);margin-top:4px;white-space:nowrap}
+tr.fi-sel td{background:var(--accent-soft)}
+tr.fi-pick{cursor:pointer}
+.risk{display:inline-block;min-width:24px;padding:1px 6px;border-radius:5px;font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
+
 @media (max-width:640px){
   .wrap{padding-inline:16px}
   td,th{padding:6px 7px;font-size:12px}
@@ -240,6 +274,7 @@ const TABS = [
   { id:"LFC",  label:"LFC - All Club", kind:"club", test:() => true },
   { id:"INTL", label:"Internationals", kind:"intl" },
   { id:"ALL",  label:"All Football", kind:"all" },
+  { id:"FI",   label:"Fatigue Index", kind:"fi" },
 ];
 
 let DATA = null;
@@ -273,6 +308,7 @@ function renderTabs(){
     let n = "";
     if (t.kind === "club") n = matchesForTab(t).length;
     else if (t.kind === "intl") n = Object.keys(DATA.internationals || {}).length;
+    else if (t.kind === "fi") n = fiPlayers().length;
     btn.innerHTML = `${esc(t.label)}${n !== "" ? `<span class="n">${n}</span>` : ""}`;
     btn.addEventListener("click", () => { activeTab = t.id; selectedMatch = null; render(); });
     nav.appendChild(btn);
@@ -529,11 +565,158 @@ function renderAllCombined(records){
       <td class="num">${r.tGoals}</td><td class="num">${r.tAssists}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
+// ---------- fatigue index (Liverpool players, from the sheet's "Fatigue Index" tab) ----------
+const FI_APPS = [
+  ["full90","Full 90","#3987e5"], ["sub_on","Sub on","#3fbf3f"], ["sub_off","Sub off","#e8b339"],
+  ["sub_off_inj","Sub off injured","#ec835a"], ["unused","Unused","#e8342a"], ["not_selected","Not selected","#d55181"],
+  ["injured_games","Injured","#8a948c"], ["suspended","Suspended","#9085e9"], ["sent_off","Sent off","#b81d1d"],
+];
+const FI_COLS = [
+  ["season_mins","Season mins",-1], ["lfc_mins","LFC mins",-1], ["pct_started","% started",-1],
+  ["weekly_ave","Weekly ave",-1], ["pct_vs_3yr","% vs 3yr ave",-1], ["pct_vs_career_max","% vs career max",-1],
+  ["vs_optimal","Vs optimal",-1], ["risk_factor","Risk factor",-1],
+];
+let fiPlayer = null;
+let fiSort = { col:"season_mins", dir:-1 };
+
+function fiPlayers(){
+  const fi = DATA.fatigue_index || {};
+  return Object.keys(fi).filter(n => {
+    const m = fi[n].metrics || {};
+    return (m.season_mins || 0) > 0 || (fi[n].apps && fi[n].apps.injured_games);
+  });
+}
+function fiNum(v, dp){
+  if (v === null || v === undefined || v === "") return "&ndash;";
+  return typeof v === "number" ? (dp != null ? v.toFixed(dp) : v.toLocaleString("en-GB")) : esc(v);
+}
+function riskColour(r){
+  // the sheet doesn't define bands for Risk Factor, so show it plainly rather than imply good/bad thresholds
+  return "var(--surface-3)";
+}
+
+function renderFiTable(){
+  const fi = DATA.fatigue_index || {};
+  const rows = fiPlayers().map(n => ({ player:n, ...(fi[n].metrics || {}) }));
+  const { col, dir } = fiSort;
+  rows.sort((a,b) => {
+    const x = a[col], y = b[col];
+    if (typeof x !== "number" && typeof y !== "number") return 0;
+    if (typeof x !== "number") return 1;
+    if (typeof y !== "number") return -1;
+    return dir * (x - y);
+  });
+  return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th>${FI_COLS.map(([k,l]) =>
+      `<th class="num${k===col?" active":""}" data-ficol="${k}">${esc(l)}${k===col?(dir<0?" &darr;":" &uarr;"):""}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r => `<tr class="fi-pick${r.player===fiPlayer?" fi-sel":""}" data-fiplayer="${esc(r.player)}" tabindex="0">
+      <td>${esc(r.player)}</td>${FI_COLS.map(([k]) => k === "risk_factor"
+        ? `<td class="num${k===col?" active":""}"><span class="risk" style="background:${riskColour(r[k])}">${fiNum(r[k])}</span></td>`
+        : `<td class="num${k===col?" active":""}">${fiNum(r[k], k==="weekly_ave"?2:null)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function fiChart(name){
+  const cur = ((DATA.fatigue_index[name] || {}).weekly || []);
+  const prev = ((DATA.weekly_2526 || {})[name] || []);
+  const lastPrev = prev.reduce((m,p) => p.mins != null ? Math.max(m, p.week) : m, 0);
+  const maxWeek = Math.max(cur.length ? cur[cur.length-1].week : 0, lastPrev, 10);
+  const maxMins = Math.max(200, ...cur.map(p=>p.mins||0), ...prev.map(p=>p.mins||0));
+  const yTop = Math.ceil(maxMins / 50) * 50;
+  const W = 640, H = 260, L = 38, R = 70, T = 12, B = 26;
+  const x = w => L + (w - 1) / Math.max(1, maxWeek - 1) * (W - L - R);
+  const y = v => T + (1 - v / yTop) * (H - T - B);
+  const path = pts => pts.filter(p => p.mins != null).map((p,i) => `${i?"L":"M"}${x(p.week).toFixed(1)},${y(p.mins).toFixed(1)}`).join("");
+  const played = cur.filter(p => p.mins != null);
+  const avg = played.length ? Math.round(played.reduce((a,p)=>a+p.mins,0) / played.length) : null;
+  let g = "";
+  for (let v = 0; v <= yTop; v += 50) g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  const step = maxWeek > 30 ? 5 : maxWeek > 15 ? 2 : 1;
+  for (let w = 1; w <= maxWeek; w += step) g += `<text x="${x(w)}" y="${H-8}" text-anchor="middle">${w}</text>`;
+  const dots = played.map(p => `<circle cx="${x(p.week)}" cy="${y(p.mins)}" r="3" fill="var(--accent)"><title>Week ${p.week}: ${p.mins} mins</title></circle>`).join("");
+  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly minutes for ${esc(name)}">
+    ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
+    ${prev.length ? `<path d="${path(prev)}" fill="none" stroke="#3987e5" stroke-width="2" opacity=".55"/>` : ""}
+    <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>${dots}
+    ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
+  </svg>
+  <div class="fi-legend"><span><i style="background:var(--accent)"></i>2026&ndash;27</span>${prev.length ? `<span><i style="background:#3987e5;opacity:.55"></i>2025&ndash;26</span>` : ""}<span><i style="background:var(--ink);opacity:.75"></i>2026&ndash;27 weekly average</span><span style="color:var(--ink-faint)">Minutes per week, all competitions incl. internationals</span></div></div>`;
+}
+
+function fiDonut(apps){
+  const parts = FI_APPS.map(([k,l,c]) => ({ l, c, v: apps[k] || 0 })).filter(p => p.v > 0);
+  const total = parts.reduce((a,p)=>a+p.v,0);
+  const r = 62, C = 2 * Math.PI * r;
+  let off = 0;
+  const segs = parts.map(p => { const len = p.v / total * C;
+    const s = `<circle cx="85" cy="85" r="${r}" fill="none" stroke="${p.c}" stroke-width="22" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 85 85)"><title>${esc(p.l)}: ${p.v}</title></circle>`;
+    off += len; return s; }).join("");
+  return `<div class="fi-donut"><svg viewBox="0 0 170 170" role="img" aria-label="Appearance breakdown">
+      <circle cx="85" cy="85" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="22"/>${segs}
+      <text class="c" x="85" y="88" text-anchor="middle">${total}</text><text class="cl" x="85" y="104" text-anchor="middle">matchdays</text></svg>
+    <div class="fi-apps">${FI_APPS.filter(([k]) => apps[k]).map(([k,l,c]) => `<div><span><i style="background:${c}"></i>${esc(l)}</span><b class="mono">${apps[k]}</b></div>`).join("") || `<div><span>No matchdays logged</span></div>`}</div></div>`;
+}
+
+function fiSeasons(tot){
+  const keys = Object.keys(tot || {});
+  if (!keys.length) return "";
+  const max = Math.max(...keys.map(k => tot[k] || 0), 1);
+  return `<div class="fi-seasons">${keys.map(k => {
+    const v = tot[k]; const proj = /proj/i.test(k); const cur = k === "25/26";
+    return `<div class="b"><span class="v">${v ? (v/1000).toFixed(1)+"k" : "&ndash;"}</span><div class="bar${proj?" proj":cur?" cur":""}" style="height:${v ? Math.max(2, v/max*86) : 0}%"></div><span class="s">${esc(proj ? "26/27p" : k)}</span></div>`;
+  }).join("")}</div>`;
+}
+
+function renderFiPlayer(name){
+  const p = (DATA.fatigue_index || {})[name];
+  if (!p) return `<div class="empty">Pick a player.</div>`;
+  const m = p.metrics || {};
+  const tiles = [["Season mins", fiNum(m.season_mins)], ["LFC mins", fiNum(m.lfc_mins)], ["% started", fiNum(m.pct_started)],
+    ["Weekly ave", fiNum(m.weekly_ave, 2)], ["% vs 3yr ave", fiNum(m.pct_vs_3yr)], ["% vs career max", fiNum(m.pct_vs_career_max)],
+    ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", `<span class="risk" style="background:${riskColour(m.risk_factor)}">${fiNum(m.risk_factor)}</span>`]];
+  return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
+    <div class="fi-row"><div>${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
+    <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
+}
+
+function renderFatigueTab(){
+  const players = fiPlayers();
+  if (!players.length) return `<div class="empty">No Fatigue Index data yet.</div>`;
+  if (!fiPlayer || !players.includes(fiPlayer)) fiPlayer = players.includes("VVD") ? "VVD" : players[0];
+  return `<div class="stack">
+    <div class="card"><div class="hd"><h2 id="fiName">${esc(fiPlayer)}</h2><span class="sub">Fatigue Index &middot; 2026&ndash;27</span></div>
+      <div class="bd" id="fiPlayer">${renderFiPlayer(fiPlayer)}</div></div>
+    <div class="card"><div class="hd"><h2>Squad load</h2><span class="sub">tap a player &middot; tap a column to sort</span></div>
+      <div class="bd" id="fiTable">${renderFiTable()}</div></div>
+  </div>`;
+}
+
+function wireFatigue(){
+  document.querySelectorAll("tr[data-fiplayer]").forEach(el => {
+    const pick = () => { fiPlayer = el.dataset.fiplayer;
+      document.getElementById("fiName").textContent = fiPlayer;
+      document.getElementById("fiPlayer").innerHTML = renderFiPlayer(fiPlayer);
+      document.getElementById("fiTable").innerHTML = renderFiTable(); wireFatigue();
+      document.getElementById("fiName").scrollIntoView({ behavior:"smooth", block:"center" }); };
+    el.addEventListener("click", pick);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); pick(); } });
+  });
+  document.querySelectorAll("th[data-ficol]").forEach(el => {
+    el.addEventListener("click", () => { const c = el.dataset.ficol;
+      fiSort.dir = fiSort.col === c ? fiSort.dir * -1 : -1; fiSort.col = c;
+      document.getElementById("fiTable").innerHTML = renderFiTable(); wireFatigue(); });
+  });
+}
+
 // ---------- main render ----------
 function render(){
   renderTabs();
   const tab = TABS.find(t => t.id === activeTab);
   const app = document.getElementById("app");
+
+  if (tab.kind === "fi"){
+    app.innerHTML = renderFatigueTab();
+    wireFatigue();
+    return;
+  }
 
   if (tab.kind === "intl"){
     app.innerHTML = `
