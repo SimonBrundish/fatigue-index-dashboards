@@ -168,6 +168,17 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 .fi-chart .avglab{fill:var(--ink-soft)}
 .fi-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-top:8px}
 .fi-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.fi-career{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.fi-career svg{display:block;max-width:none}
+.fi-career .ax{stroke:var(--line-strong);stroke-width:1}
+.fi-career .gl{stroke:var(--line);stroke-width:1}
+.fi-career text{fill:var(--ink-faint);font-size:10px;font-family:"IBM Plex Mono",monospace}
+.fi-career .avg{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:5 4;opacity:.7}
+.fi-career .avglab{fill:var(--ink-soft)}
+.fi-sea{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line-strong);color:var(--ink-soft);border-radius:99px;padding:2px 9px;font-size:11px;cursor:pointer;font-family:"IBM Plex Mono",monospace}
+.fi-sea[disabled]{cursor:default;color:var(--ink)}
+.fi-sea.off{opacity:.38}
+.fi-sea.off i{background:var(--ink-faint)!important}
 .fi-legend i.dot{width:9px;height:9px;border-radius:50%}
 .fi-row{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;align-items:start}
 @media (max-width:700px){.fi-row{grid-template-columns:1fr}}
@@ -733,12 +744,27 @@ function renderFiTable(){
         : `<td class="num${k===col?" active":""}">${fiNum(r[k], k==="weekly_ave"?2:null)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
+// one colour per season; the current season keeps the accent and sits on top
+const FI_SEASON_COL = {"17/18":"#9085e9","18/19":"#8fd94a","19/20":"#3987e5","20/21":"#f4a259","21/22":"#d55181",
+  "22/23":"#4fb6c8","23/24":"#a9b3ab","24/25":"#e66767","25/26":"#3fbf3f"};
+const FI_CUR = "26/27";
+let fiHidden = new Set();
+function fiSeries(name){
+  const hist = Object.assign({}, (DATA.weekly_history || {})[name] || {});
+  if (!hist["25/26"] && (DATA.weekly_2526 || {})[name]) hist["25/26"] = DATA.weekly_2526[name];
+  const out = Object.keys(hist).sort()
+    // a season of nothing but zeros (before he joined) draws a flat line on the axis; leave it out
+    .filter(s => (hist[s] || []).some(p => (p.mins || 0) > 0))
+    .map(s => ({ s, col: FI_SEASON_COL[s] || "#8a948c", pts: rolling4(hist[s]) }));
+  out.push({ s: FI_CUR, col: "var(--accent)", cur: true, pts: rolling4((DATA.fatigue_index[name] || {}).weekly || []) });
+  return out;
+}
 function fiChart(name){
-  const cur = rolling4((DATA.fatigue_index[name] || {}).weekly || []);
-  const prev = rolling4((DATA.weekly_2526 || {})[name] || []);
-  const lastPrev = prev.reduce((m,p) => p.mins != null ? Math.max(m, p.week) : m, 0);
-  const maxWeek = Math.max(cur.length ? cur[cur.length-1].week : 0, lastPrev, 10);
-  const maxMins = Math.max(200, ...cur.map(p=>p.mins||0), ...prev.map(p=>p.mins||0));
+  const series = fiSeries(name);
+  const shown = series.filter(x => !fiHidden.has(x.s) || x.cur);
+  const cur = series[series.length - 1].pts;
+  const maxWeek = Math.max(10, ...shown.map(x => x.pts.length ? x.pts[x.pts.length-1].week : 0));
+  const maxMins = Math.max(200, ...shown.flatMap(x => x.pts.map(p => p.mins || 0)));
   const yTop = Math.ceil(maxMins / 50) * 50;
   const W = 640, H = 260, L = 38, R = 70, T = 12, B = 26;
   const x = w => L + (w - 1) / Math.max(1, maxWeek - 1) * (W - L - R);
@@ -750,14 +776,52 @@ function fiChart(name){
   for (let v = 0; v <= yTop; v += 50) g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
   const step = maxWeek > 30 ? 5 : maxWeek > 15 ? 2 : 1;
   for (let w = 1; w <= maxWeek; w += step) g += `<text x="${x(w)}" y="${H-8}" text-anchor="middle">${w}</text>`;
-  const dots = played.map(p => `<circle cx="${x(p.week)}" cy="${y(p.mins)}" r="3" fill="var(--accent)"><title>Week ${p.week}: 4-week average ${p.mins} mins (this week ${p.raw})</title></circle>`).join("");
-  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="4-week rolling average minutes for ${esc(name)}">
-    ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
-    ${prev.length ? `<path d="${path(prev)}" fill="none" stroke="#3987e5" stroke-width="2" opacity=".55"/>` : ""}
-    <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>${dots}
+  const lines = shown.filter(sr => !sr.cur).map(sr =>
+    `<path d="${path(sr.pts)}" fill="none" stroke="${sr.col}" stroke-width="1.8" opacity=".8" stroke-linejoin="round"><title>${sr.s}</title></path>`).join("");
+  const dots = played.map(p => `<circle cx="${x(p.week)}" cy="${y(p.mins)}" r="3" fill="var(--accent)"><title>${FI_CUR} week ${p.week}: 4-week average ${p.mins} mins (this week ${p.raw})</title></circle>`).join("");
+  const chips = series.map(sr => `<button type="button" class="fi-sea${fiHidden.has(sr.s) && !sr.cur ? " off" : ""}" data-fisea="${sr.s}"${sr.cur ? " disabled" : ""}><i style="background:${sr.col}"></i>${sr.s}</button>`).join("");
+  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="4-week rolling average minutes by season for ${esc(name)}">
+    ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>${lines}
+    <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>${dots}
     ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
   </svg>
-  <div class="fi-legend"><span><i style="background:var(--accent)"></i>2026&ndash;27</span>${prev.length ? `<span><i style="background:#3987e5;opacity:.55"></i>2025&ndash;26</span>` : ""}<span><i style="background:var(--ink);opacity:.75"></i>2026&ndash;27 season average</span><span style="color:var(--ink-faint)">4-week rolling average of minutes per week, all competitions incl. internationals</span></div></div>`;
+  <div class="fi-legend">${chips}<span style="color:var(--ink-faint)">tap a season to hide/show &middot; dashed = ${FI_CUR} season average &middot; 4-week rolling average of minutes per week, all competitions incl. internationals, by week of season</span></div></div>`;
+}
+
+// one continuous 4-week rolling line across every season he has weekly data for, then 26/27
+function fiCareer(name){
+  const hist = (DATA.weekly_history || {})[name] || {};
+  const seasons = Object.keys(hist).sort().filter(s => (hist[s] || []).some(p => (p.mins || 0) > 0));
+  if (!seasons.length) return `<div class="empty" style="padding:10px 0;text-align:left">No historic weekly data.</div>`;
+  const stream = [];
+  seasons.forEach(s => hist[s].forEach(p => stream.push({ s, week:p.week, mins:p.mins, wc:p.wc })));
+  ((DATA.fatigue_index[name] || {}).weekly || []).forEach(p => stream.push({ s:FI_CUR, week:p.week, mins:p.mins }));
+  const roll = rolling4(stream).map((r, i) => ({ ...stream[i], roll:r.mins }));
+  const n = roll.length, raw = stream.filter(p => p.mins != null);
+  const avg = raw.length ? Math.round(raw.reduce((a,p) => a + p.mins, 0) / raw.length) : null;
+  const yTop = Math.ceil(Math.max(200, ...roll.map(p => p.roll)) / 50) * 50;
+  const W = Math.max(1100, Math.round(n * 2.5) + 100), H = 230, L = 36, R = 64, T = 22, B = 12;
+  const x = i => L + i / Math.max(1, n - 1) * (W - L - R);
+  const y = v => T + (1 - v / yTop) * (H - T - B);
+  let g = "", i0 = 0;
+  const spans = [];
+  roll.forEach((p, i) => { if (i === n - 1 || roll[i+1].s !== p.s){ spans.push([p.s, i0, i]); i0 = i + 1; } });
+  spans.forEach(([s, a, b], k) => {
+    const xa = k ? (x(a) + x(a-1)) / 2 : L, xb = b === n - 1 ? W - R : (x(b) + x(b+1)) / 2;
+    g += `<rect x="${xa}" y="${T}" width="${xb - xa}" height="${H - T - B}" fill="${k % 2 ? "var(--surface-2)" : "transparent"}"/>`
+       + `<text x="${(xa + xb) / 2}" y="${T - 7}" text-anchor="middle"${s === FI_CUR ? ' style="fill:var(--accent-ink)"' : ""}>${s}</text>`;
+  });
+  const wc = roll.map((p, i) => p.wc ? i : -1).filter(i => i >= 0);
+  if (wc.length) g += `<rect x="${x(wc[0]) - 2}" y="${T}" width="${x(wc[wc.length-1]) - x(wc[0]) + 4}" height="${H - T - B}" fill="var(--accent-soft)" opacity=".8"/>`
+    + `<text x="${(x(wc[0]) + x(wc[wc.length-1])) / 2}" y="${T + 11}" text-anchor="middle" style="fill:var(--accent-ink)">World Cup 2026</text>`;
+  for (let v = 0; v <= yTop; v += 50) g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  const d = roll.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.roll).toFixed(1)}`).join("");
+  const hov = roll.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.roll).toFixed(1)}" r="3.2" fill="transparent"><title>${p.s} week ${p.week}: 4-week average ${p.roll} mins${p.wc ? " (World Cup 2026, spread evenly)" : ""}</title></circle>`).join("");
+  return `<div class="fi-career"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Career 4-week rolling minutes for ${esc(name)}">
+    ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>${hov}
+    ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
+  </svg></div>`;
 }
 
 function fiDonut(apps){
@@ -792,7 +856,8 @@ function renderFiPlayer(name){
     ["Weekly ave", fiNum(m.weekly_ave, 2)], ["% vs 3yr ave", fiNum(m.pct_vs_3yr)], ["% vs career max", fiNum(m.pct_vs_career_max)],
     ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", riskBadge(m.risk_factor)]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
-    <div class="fi-row"><div>${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
+    <div class="fi-row"><div id="fiChartBox">${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
+    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; dashed = career weekly average</span></div>${fiCareer(name)}</div>
     <div style="margin-top:18px">${fiPublished(name)}</div>
     <div style="margin-top:16px">${fiInjuries(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
@@ -810,7 +875,13 @@ function renderFatigueTab(){
   </div>`;
 }
 
+function wireSeasons(){
+  document.querySelectorAll("button[data-fisea]").forEach(el => el.addEventListener("click", () => {
+    const s = el.dataset.fisea; fiHidden.has(s) ? fiHidden.delete(s) : fiHidden.add(s);
+    document.getElementById("fiChartBox").innerHTML = fiChart(fiPlayer); wireSeasons(); }));
+}
 function wireFatigue(){
+  wireSeasons();
   document.querySelectorAll("tr[data-fiplayer]").forEach(el => {
     const pick = () => { fiPlayer = el.dataset.fiplayer;
       document.getElementById("fiName").textContent = fiPlayer;
