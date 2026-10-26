@@ -205,7 +205,7 @@ td.num{font-family:"IBM Plex Mono",monospace}
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer"><div class="dh"><div><h2 id="d-name"></h2><div class="meta" id="d-meta"></div></div><button class="x" id="d-x">✕</button></div><div class="dbody" id="d-body"></div></aside>
 
-<script id="fdata-parts" type="application/json">{"v":"98553e86ac","core":"fatigue-data/core.json","parts":["fatigue-data/snapshots-2025-10.json","fatigue-data/snapshots-2025-11.json","fatigue-data/snapshots-2025-12.json","fatigue-data/snapshots-2026-01.json","fatigue-data/snapshots-2026-02.json","fatigue-data/snapshots-2026-03.json","fatigue-data/snapshots-2026-04.json","fatigue-data/snapshots-2026-05.json","fatigue-data/snapshots-2026-06.json","fatigue-data/snapshots-2026-08.json","fatigue-data/snapshots-2026-09.json","fatigue-data/snapshots-2026-10.json","fatigue-data/series.json","fatigue-data/injuries.json"]}</script>
+<script id="fdata-parts" type="application/json">{"v":"9e68ff832f","core":"fatigue-data/core.json","parts":["fatigue-data/snapshots-2025-10.json","fatigue-data/snapshots-2025-11.json","fatigue-data/snapshots-2025-12.json","fatigue-data/snapshots-2026-01.json","fatigue-data/snapshots-2026-02.json","fatigue-data/snapshots-2026-03.json","fatigue-data/snapshots-2026-04.json","fatigue-data/snapshots-2026-05.json","fatigue-data/snapshots-2026-06.json","fatigue-data/snapshots-2026-08.json","fatigue-data/snapshots-2026-09.json","fatigue-data/snapshots-2026-10.json","fatigue-data/series.json","fatigue-data/injuries.json"]}</script>
 <script>
 // data lives next to the page in fatigue-data/ (written by slim_publish.py)
 async function loadFatigueData(){
@@ -596,15 +596,17 @@ function renderMethod(){
   season load vs history (15%) · international travel (10%). Not playing scores 0 here.
   <b style="color:var(--red)">60+</b> high · <b style="color:var(--amber)">35–60</b> elevated.
   Not backtested — use it for rotation calls, and the index for risk.</p>
-  <h3>Weights (v2.4)</h3>
+  <h3>Weights (v2.5)</h3>
   <table><tbody>${wrows}</tbody></table>
   <h3>How it was tuned</h3>
   <p>Checked against <b>177 real soft-tissue injuries</b> from 2025/26 (Transfermarkt), comparing
   each injured player's index the week before onset with ~12,500 injury-free player-weeks. Every
   competition counts — league, cups, Europe, internationals and unused-sub days — and history only
   ever uses seasons <i>before</i> the one being scored. Weights were searched with 5-fold
-  cross-validation grouped by player (no player in both train and test): <b>CV AUC 0.668</b>
-  (0.636 with the previous weights); full-sample <b>AUC 0.673</b>.</p>
+  cross-validation grouped by player (no player in both train and test): CV AUC 0.668
+  (0.636 with the previous weights). On 26 Oct 2026 the prior-injury weight was lowered from
+  0.42 to 0.30, so history weighs less in the headline index: <b>CV AUC 0.664</b>
+  (0.667 at 0.42 on the same folds); full-sample <b>AUC 0.670</b>.</p>
   <ul>
    <li><b>Prior-injury history</b> (AUC 0.665) and <b>fixture congestion</b> (0.639) carry the
      signal. Congestion only showed up once cup, European and international minutes and unused
