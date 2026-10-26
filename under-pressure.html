@@ -258,16 +258,27 @@ const FRIENDLY = {
   "Sprint m [BT]": "Sprint m (Total)", "Sprint m [BX]": "Sprint m (P90)",
   "Sprints [BU]": "Sprints (Total)", "Sprints [BY]": "Sprints (P90)",
   "Int + Rec": "Interceptions + Recoveries", "PAdj Presses": "PAdj Presses (possession-adjusted)", "CIB": "Carries Into Box",
-  "XG (public)": "xG (public box score)", "SCA": "Shot-Creating Actions", "GCA": "Goal-Creating Actions",
+  "XG (public)": "xG (public box score)", "SCA": "Chances created (key passes)", "SCA per100": "Chances created per 100 touches", "GCA": "Goal-Creating Actions",
 };
 function label(key){ return FRIENDLY[key] || key; }
+
+// xT added per 100 touches (computed in pipeline.py from Dr Barts' per-match EPV)
+const XT100 = "xT added per 100 touches";
+const XT100_NOTE = "EPV created minus EPV received, per 100 touches. Higher means more value added per touch.";
+function fmtVal(metric, v){
+  if (metric === XT100 && typeof v === "number") return (v > 0 ? "+" : v < 0 ? "&minus;" : "") + Math.abs(v).toFixed(2);
+  return v;
+}
+function metricNote(metric){
+  return metric === XT100 ? `<div class="empty" style="padding:0 0 10px;text-align:left;font-size:11.5px">${XT100_NOTE}</div>` : "";
+}
 
 const HEADLINE_METRICS = [
   "Goals","Assists","Shots","SOT","Big Chances","SCA","GCA","Successful Dribbles",
   "Top Speed","Distance (P90)","Sprints (P90)","Touches","Completed Passes","Progressive Carries","Prog"
 ];
 
-const QUICK_METRICS = ["Goals","Assists","Big Chances","SCA","Top Speed","Distance (P90)","Successful Dribbles","Touches"];
+const QUICK_METRICS = ["Goals","Assists","Big Chances","SCA","xT added per 100 touches","Top Speed","Distance (P90)","Successful Dribbles","Touches"];
 
 // Full column set for the match box-score table, grouped the way the pod's
 // own sheet groups them -- this is the whole tracked metric set, not a
@@ -280,7 +291,7 @@ const METRIC_GROUPS = [
   ["Defending & duels", ["Int + Rec","Duels+/-","Aerials +/-","% Touches won","Possessions lost","Ball Retention %","% possession won","Tackles","Interceptions","Blocks"]],
   ["Creating", ["SCA","GCA","Big Chances","Big Assist","Pen Wins","Hockey Assist","Touches inside box"]],
   ["Shooting & goals", ["Shots","SOT","off Target","Blocked","Big Chance Scored","Big Chance missed","Pens Scored","Pens Missed","Goals","Assists","Equaliser","Go Ahead"]],
-  ["Expected", ["XG shots","XG assist","XG2","XT","XGBuild Up","PC","PC90","XGB100","XGT100","XG (public)"]],
+  ["Expected", ["XG shots","XG assist","XG2","XT","xT added per 100 touches","XGBuild Up","PC","PC90","XGB100","XGT100","XG (public)"]],
   ["Off the ball: EPV", ["EPV Received","EPV Created","EPV Faced","EPV Lost %"]],
   ["Off the ball: pressing", ["Total Presses","PAdj Presses","Successful Presses","Failed Presses","Counter Presses"]],
   ["Goalkeeping", ["Shots Faced","Saves","PSxG","Goals Conceded"]],
@@ -422,7 +433,7 @@ function renderMatchDetail(matches, records){
   if (leftover.length) groups.push(["Other", leftover]);
 
   const groupRow = `<tr><th rowspan="2" class="playercol">Player</th>` + groups.map(([name, cols]) => `<th colspan="${cols.length}" class="grouphead">${esc(name)}</th>`).join("") + `</tr>`;
-  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}">${esc(label(c))}</th>`)).join("") + `</tr>`;
+  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " — " + XT100_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
   const head = groupRow + colRow;
   const allCols = groups.flatMap(([,cols]) => cols);
   let body = recs.map(r => `<tr><td>${esc(r.player)}</td>` + allCols.map(c => {
@@ -474,7 +485,7 @@ function renderLeaderboard(records){
   const rows = top.map((e,i) => `
     <tr>
       <td><span class="rank${i===0 && lbDir===bestDir(lbMetric) ?' g':''}">${i+1}</span>${esc(e.player)}</td>
-      <td class="num">${e.value}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4, Math.abs(e.value)/max*100)}%"></div></div></td>
+      <td class="num">${fmtVal(lbMetric, e.value)}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4, Math.abs(e.value)/max*100)}%"></div></div></td>
       <td><span class="pill comp-${esc(e.competition)}">${esc(e.competition)}</span></td>
       <td>${esc(e.match)}</td>
       <td>${fmtDate(e.date)}</td>
@@ -490,6 +501,7 @@ function renderLeaderboard(records){
     <div class="lb-controls" style="margin-bottom:14px">
       ${QUICK_METRICS.map(m => `<button class="chip" data-metric="${esc(m)}" aria-pressed="${m===lbMetric}">${esc(label(m))}</button>`).join("")}
     </div>
+    ${metricNote(lbMetric)}${lbMetric === XT100 ? `<div class="empty" style="padding:0 0 10px;text-align:left;font-size:11.5px">Per match, only games with 20+ touches.</div>` : ""}
     ${seasonHigh ? `<div class="empty" style="padding:8px 0 14px;text-align:left;color:var(--ink-soft)">Season high so far: <b style="color:var(--ink)">${esc(seasonHigh.player)}</b> &mdash; ${seasonHigh.value} vs ${esc(seasonHigh.opponent)} (${fmtDate(seasonHigh.date)})</div>` : ""}
     <div class="tablewrap"><table>
       <thead><tr><th class="playercol">Player</th><th class="num">${esc(label(lbMetric))}</th><th>Comp</th><th>Match</th><th>Date</th></tr></thead>
@@ -515,15 +527,21 @@ function renderSeasonRates(){
     // skip the sheet's squad "Total" row and anyone without minutes; when
     // ranking highest first, a 0 is no performance worth listing
     .filter(([player,p]) => !/^total$/i.test(player.trim()) && (p.Mins || 0) > 0
-      && validRate(srMetric, p[srMetric]) && !(srDir === -1 && p[srMetric] === 0))
+      && validRate(srMetric, p[srMetric]) && !(srDir === -1 && p[srMetric] === 0 && srMetric !== XT100))
     .map(([player,p]) => ({ player, value:p[srMetric], mins:p.Mins }))
     .sort((a,b) => srDir === -1 ? (b.value - a.value) : (a.value - b.value));
-  const top = srAll ? entries : entries.slice(0,10);
+  // xT per 100 touches only ranks players with 100+ touches; the rest sit greyed below a divider
+  const isXt = srMetric === XT100, xt = DATA.xt100 || {};
+  const ranked = isXt ? entries.filter(e => (xt[e.player] || {}).ranked) : entries;
+  const unranked = isXt ? entries.filter(e => !(xt[e.player] || {}).ranked) : [];
+  const top = srAll ? ranked : ranked.slice(0,10);
   const max = top.length ? Math.max(...top.map(e=>Math.abs(e.value)),1) : 1;
-  const rows = top.map((e,i) => `
-    <tr><td><span class="rank${i===0 && srDir===bestDir(srMetric)?' g':''}">${i+1}</span>${esc(e.player)}</td>
+  const row = (e, i, grey) => `
+    <tr${grey ? ' style="opacity:.45"' : ""}><td><span class="rank${!grey && i===0 && srDir===bestDir(srMetric)?' g':''}">${grey ? "&ndash;" : i+1}</span>${esc(e.player)}${isXt ? `<span style="color:var(--ink-faint);font-size:10.5px"> &middot; ${(xt[e.player]||{}).touches ?? "?"} touches</span>` : ""}</td>
     <td class="num">${typeof e.mins === "number" ? e.mins : "&ndash;"}</td>
-    <td class="num">${e.value}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4,Math.abs(e.value)/max*100)}%"></div></div></td></tr>`).join("");
+    <td class="num">${fmtVal(srMetric, e.value)}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4,Math.abs(e.value)/max*100)}%"></div></div></td></tr>`;
+  const rows = top.map((e,i) => row(e, i, false)).join("")
+    + (srAll && unranked.length ? `<tr><td colspan="3" style="color:var(--ink-faint);font-size:11px">Under 100 touches &mdash; not ranked</td></tr>` + unranked.map((e,i) => row(e, i, true)).join("") : "");
 
   return `
     <div class="lb-controls">
@@ -532,6 +550,7 @@ function renderSeasonRates(){
       <button class="dirbtn" id="srDirBtn">${srDir===-1 ? "Highest first" : "Lowest first"}</button>
       <button class="dirbtn" id="srAllBtn">${srAll ? "Top 10 only" : `Show all ${entries.length}`}</button>
     </div>
+    ${metricNote(srMetric)}
     <div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num">Mins</th><th class="num">${esc(label(srMetric))}</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="3" class="empty">No data.</td></tr>`}</tbody></table></div>
   `;
@@ -611,12 +630,17 @@ function fiNum(v, dp){
   if (v === null || v === undefined || v === "") return "&ndash;";
   return typeof v === "number" ? (dp != null ? v.toFixed(dp) : v.toLocaleString("en-GB")) : esc(v);
 }
-function riskColour(r){
-  // the sheet doesn't define bands for Risk Factor, so show it plainly rather than imply good/bad thresholds
-  return "var(--surface-3)";
-}
 // Fatigue Index dashboard bands: red > 65, amber 40-65, green < 40 (its own colours)
 const FI_BAND = { red:"#f8737f", amber:"#e6a44b", green:"#4ade80" };
+// Simon's Risk Factor bands (0-12 sheet scale): 6 and below green, over 6 to 11 amber, over 11 red
+function riskColour(r){
+  if (typeof r !== "number") return "var(--surface-3)";
+  return r > 11 ? FI_BAND.red : r > 6 ? FI_BAND.amber : FI_BAND.green;
+}
+function riskBadge(r){
+  const banded = typeof r === "number";
+  return `<span class="risk" style="background:${riskColour(r)}${banded ? ";color:#0c1408" : ""}" title="Risk factor: 6 and below green, 7&ndash;11 amber, above 11 red">${fiNum(r)}</span>`;
+}
 function fiInj(name){ return (DATA.fi_published || {})[name] || null; }
 const FI_SCORELAB = {injury_hist:"Prior injury burden", season_load:"Season load vs history",
   congestion:"Fixture congestion", min_acwr:"Minutes ACWR", hi_acwr:"Hi-intensity ACWR",
@@ -705,7 +729,7 @@ function renderFiTable(){
       `<th class="num${k===col?" active":""}" data-ficol="${k}">${esc(l)}${k===col?(dir<0?" &darr;":" &uarr;"):""}</th>`).join("")}</tr></thead>
     <tbody>${rows.map(r => `<tr class="fi-pick${r.player===fiPlayer?" fi-sel":""}" data-fiplayer="${esc(r.player)}" tabindex="0">
       <td>${esc(r.player)}</td><td class="num">${fiBadge(r.player)}</td>${FI_COLS.map(([k]) => k === "risk_factor"
-        ? `<td class="num${k===col?" active":""}"><span class="risk" style="background:${riskColour(r[k])}">${fiNum(r[k])}</span></td>`
+        ? `<td class="num${k===col?" active":""}">${riskBadge(r[k])}</td>`
         : `<td class="num${k===col?" active":""}">${fiNum(r[k], k==="weekly_ave"?2:null)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
@@ -766,7 +790,7 @@ function renderFiPlayer(name){
   const m = p.metrics || {};
   const tiles = [["Fatigue Index", fiBadge(name)], ["Season mins", fiNum(m.season_mins)], ["LFC mins", fiNum(m.lfc_mins)], ["% started", fiNum(m.pct_started)],
     ["Weekly ave", fiNum(m.weekly_ave, 2)], ["% vs 3yr ave", fiNum(m.pct_vs_3yr)], ["% vs career max", fiNum(m.pct_vs_career_max)],
-    ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", `<span class="risk" style="background:${riskColour(m.risk_factor)}">${fiNum(m.risk_factor)}</span>`]];
+    ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", riskBadge(m.risk_factor)]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
     <div class="fi-row"><div>${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
     <div style="margin-top:18px">${fiPublished(name)}</div>
