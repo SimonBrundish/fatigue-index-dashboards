@@ -960,7 +960,9 @@ function wireInteractions(records, matches, tab){
 // scrollbar. No-ops when the page isn't embedded in an iframe.
 function broadcastHeight(){
   if (window.self === window.top) return;
-  window.parent.postMessage({ upPressureHeight: document.documentElement.scrollHeight }, "*");
+  const h = document.documentElement.scrollHeight;
+  // dashHeight is the shared key the simonbrundish.com/data listener reads for every dashboard
+  window.parent.postMessage({ upPressureHeight: h, dashHeight: h }, "*");
 }
 new ResizeObserver(broadcastHeight).observe(document.documentElement);
 

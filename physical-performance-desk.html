@@ -1122,4 +1122,19 @@
   renderAll();
 })();
 </script>
+<!-- dash-height: tells a parent page (simonbrundish.com/data) how tall this dashboard is -->
+<script>(function(){
+  if (window.self === window.top) return;
+  var last = 0;
+  function send(){
+    var h = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+    if (Math.abs(h - last) < 2) return;
+    last = h; window.parent.postMessage({ dashHeight: h }, "*");
+  }
+  window.addEventListener("load", send);
+  window.addEventListener("resize", send);
+  document.addEventListener("click", function(){ setTimeout(send, 60); setTimeout(send, 400); });
+  if (window.ResizeObserver) new ResizeObserver(send).observe(document.body || document.documentElement);
+  setTimeout(send, 0);
+})();</script>
 </body></html>
