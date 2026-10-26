@@ -197,6 +197,17 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 .fi-inj .n{color:var(--ink-soft);font-size:11px;white-space:nowrap}
 .fi-inj .now{background:#f8737f;color:#0c1408;border-radius:4px;padding:0 5px;font-size:10px;margin-left:4px}
 @media (max-width:520px){.fi-inj div{grid-template-columns:1fr auto}.fi-inj .d{grid-column:1/-1}}
+.fi-pub{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:800px){.fi-pub{grid-template-columns:1fr}}
+.fi-comp{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(40px,1fr) 34px 44px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);font-size:12px}
+.fi-comp .l{color:var(--ink-soft);display:flex;flex-direction:column;min-width:0}
+.fi-comp .l small{color:var(--ink-faint);font-size:10.5px}
+.fi-comp .bar{height:6px;background:var(--surface-3);border-radius:4px;overflow:hidden}
+.fi-comp .bar i{display:block;height:100%;border-radius:4px}
+.fi-comp .s,.fi-comp .p{text-align:right}
+.fi-comp.h{color:var(--ink-faint);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.fi-comp.t{border-bottom:none;font-weight:700}
+.fi-comp.t .l{color:var(--ink)}
 tr.fi-sel td{background:var(--accent-soft)}
 tr.fi-pick{cursor:pointer}
 .risk{display:inline-block;min-width:24px;padding:1px 6px;border-radius:5px;font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
@@ -606,7 +617,53 @@ function riskColour(r){
 }
 // Fatigue Index dashboard bands: red > 65, amber 40-65, green < 40 (its own colours)
 const FI_BAND = { red:"#f8737f", amber:"#e6a44b", green:"#4ade80" };
-function fiInj(name){ return (DATA.fi_injuries || {})[name] || null; }
+function fiInj(name){ return (DATA.fi_published || {})[name] || null; }
+const FI_SCORELAB = {injury_hist:"Prior injury burden", season_load:"Season load vs history",
+  congestion:"Fixture congestion", min_acwr:"Minutes ACWR", hi_acwr:"Hi-intensity ACWR",
+  sprint_spike:"Sprint load spike", hi_pct_swing:"Hi-speed % swing", age_youth:"Age / youth",
+  travel:"International travel"};
+const FI_INPUT = { season_load:v => `${v}% of norm`, min_acwr:v => `ratio ${v}`, hi_acwr:v => `ratio ${v}`,
+  sprint_spike:v => `ratio ${v}`, hi_pct_swing:v => `${v > 0 ? "+" : ""}${v} pts`, travel:v => `${Math.round(v).toLocaleString("en-GB")} km`,
+  congestion:v => `${v}d since last game` };
+const fiScoreCol = s => s == null ? "var(--surface-3)" : s > 65 ? FI_BAND.red : s >= 40 ? FI_BAND.amber : FI_BAND.green;
+function fiHistory(hist){
+  const pts = hist.filter(h => h.index != null);
+  if (pts.length < 2) return `<div class="empty" style="padding:10px 0;text-align:left">Not enough ranked weeks for a history line.</div>`;
+  const W = 640, H = 150, L = 30, R = 10, T = 8, B = 22;
+  const t0 = +new Date(hist[0].d), t1 = +new Date(hist[hist.length-1].d);
+  const x = d => L + (+new Date(d) - t0) / Math.max(1, t1 - t0) * (W - L - R);
+  const y = v => T + (1 - v / 100) * (H - T - B);
+  const band = (lo, hi, c) => `<rect x="${L}" width="${W-L-R}" y="${y(hi)}" height="${y(lo)-y(hi)}" fill="${c}" opacity=".13"/>`;
+  // a gap where the player wasn't ranked that week
+  let path = "", prev = false;
+  hist.forEach(h => { if (h.index == null){ prev = false; return; }
+    path += `${prev ? "L" : "M"}${x(h.d).toFixed(1)},${y(h.index).toFixed(1)}`; prev = true; });
+  let g = band(0, 40, FI_BAND.green) + band(40, 65, FI_BAND.amber) + band(65, 100, FI_BAND.red);
+  for (const v of [0, 40, 65, 100]) g += `<text x="${L-5}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  const months = []; const d0 = new Date(hist[0].d);
+  for (let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1); +m <= t1; m.setMonth(m.getMonth() + 3)) months.push(new Date(m));
+  g += months.map(m => `<text x="${x(m.toISOString().slice(0,10))}" y="${H-6}" text-anchor="middle">${m.toLocaleDateString("en-GB",{month:"short",year:"2-digit"})}</text>`).join("");
+  const last = pts[pts.length-1];
+  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fatigue Index history">${g}
+    <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+    ${pts.map(h => `<circle cx="${x(h.d)}" cy="${y(h.index)}" r="2.6" fill="${fiScoreCol(h.index)}"><title>${fiDate(h.d)}: ${h.index} (${h.band})</title></circle>`).join("")}
+    <circle cx="${x(last.d)}" cy="${y(last.index)}" r="4.5" fill="${fiScoreCol(last.index)}" stroke="var(--bg)" stroke-width="1.5"/></svg></div>`;
+}
+function fiPublished(name){
+  const j = fiInj(name);
+  if (!j) return "";
+  const comps = (j.components || []).filter(c => c.score != null).sort((a,b) => (b.points||0) - (a.points||0));
+  const rows = comps.map(c => `<div class="fi-comp"><span class="l">${esc(FI_SCORELAB[c.key] || c.key)}<small>${c.input != null && FI_INPUT[c.key] ? FI_INPUT[c.key](c.input) : ""}</small></span>
+      <span class="bar"><i style="width:${Math.max(1, c.score)}%;background:${fiScoreCol(c.score)}"></i></span>
+      <span class="mono s">${Math.round(c.score)}</span><span class="mono p">${(c.points||0).toFixed(1)}</span></div>`).join("");
+  const nudge = j.resp_nudge ? `<div class="fi-comp"><span class="l">Fatigue response nudge<small>declining speed / sprint / HI share</small></span><span></span><span></span><span class="mono p">+${j.resp_nudge.toFixed(1)}</span></div>` : "";
+  return `<div class="fi-injhd"><span>Fatigue Index (published)</span><span class="sub">score ${j.fi_index != null ? `<b style="color:${FI_BAND[j.fi_band]}">${j.fi_index} ${esc(j.fi_band)}</b>` : "not ranked this week"} &middot; as of ${fiDate(j.as_of)} &middot; red &gt; 65, amber 40&ndash;65, green &lt; 40</span></div>
+    <div class="fi-pub">
+      <div><div class="fi-comp h"><span class="l">Component</span><span></span><span class="s">Score</span><span class="p">Points</span></div>${rows}${nudge}
+        ${j.fi_index != null ? `<div class="fi-comp t"><span class="l">Fatigue Index</span><span></span><span></span><span class="mono p">${j.fi_index}</span></div>` : ""}</div>
+      <div><div class="sub" style="color:var(--ink-faint);font-size:11.5px;margin-bottom:4px">Weekly Fatigue Index since Oct 2025</div>${fiHistory(j.history || [])}</div>
+    </div>`;
+}
 function fiBadge(name){
   const j = fiInj(name);
   if (!j || j.fi_index == null) return `<span class="risk" title="Not ranked in the Fatigue Index this week">&ndash;</span>`;
@@ -712,6 +769,7 @@ function renderFiPlayer(name){
     ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", `<span class="risk" style="background:${riskColour(m.risk_factor)}">${fiNum(m.risk_factor)}</span>`]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
     <div class="fi-row"><div>${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
+    <div style="margin-top:18px">${fiPublished(name)}</div>
     <div style="margin-top:16px">${fiInjuries(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
 }
