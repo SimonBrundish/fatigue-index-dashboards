@@ -444,7 +444,7 @@ function renderMatchDetail(matches, records){
   if (leftover.length) groups.push(["Other", leftover]);
 
   const groupRow = `<tr><th rowspan="2" class="playercol">Player</th>` + groups.map(([name, cols]) => `<th colspan="${cols.length}" class="grouphead">${esc(name)}</th>`).join("") + `</tr>`;
-  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " — " + XT100_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
+  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " \u2014 " + XT100_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
   const head = groupRow + colRow;
   const allCols = groups.flatMap(([,cols]) => cols);
   let body = recs.map(r => `<tr><td>${esc(r.player)}</td>` + allCols.map(c => {
@@ -679,7 +679,16 @@ function fiHistory(hist){
   for (let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1); +m <= t1; m.setMonth(m.getMonth() + 3)) months.push(new Date(m));
   g += months.map(m => `<text x="${x(m.toISOString().slice(0,10))}" y="${H-6}" text-anchor="middle">${m.toLocaleDateString("en-GB",{month:"short",year:"2-digit"})}</text>`).join("");
   const last = pts[pts.length-1];
-  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fatigue Index history">${g}
+  const hs = hist.map((h, i) => ({ ...h, i })).filter(h => h.index != null);
+  const hboxes = fiSpells(fiPlayer).map(s => {
+    const idx = hs.filter(h => h.d >= s.from && h.d <= s.to);
+    // a spell shorter than a week can fall between snapshots: bracket the nearest week instead
+    const use = idx.length ? idx : hs.filter(h => Math.abs(+new Date(h.d) - +new Date(s.from)) < 4 * DAY);
+    if (!use.length || s.to < hist[0].d || s.from > hist[hist.length-1].d) return "";
+    const xs = hs.map(h => x(h.d)), ys = hs.map(h => y(h.index));
+    return fiInjBox(xs, ys, hs.indexOf(use[0]), hs.indexOf(use[use.length-1]), s);
+  }).join("");
+  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fatigue Index history">${g}${hboxes}
     <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
     ${pts.map(h => `<circle cx="${x(h.d)}" cy="${y(h.index)}" r="2.6" fill="${fiScoreCol(h.index)}"><title>${fiDate(h.d)}: ${h.index} (${h.band})</title></circle>`).join("")}
     <circle cx="${x(last.d)}" cy="${y(last.index)}" r="4.5" fill="${fiScoreCol(last.index)}" stroke="var(--bg)" stroke-width="1.5"/></svg></div>`;
@@ -744,6 +753,43 @@ function renderFiTable(){
         : `<td class="num${k===col?" active":""}">${fiNum(r[k], k==="weekly_ave"?2:null)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
+// ---------- injury boxes (same look as the Fatigue Index dashboard's player charts) ----------
+// Weekly charts are by season week: week 1 = Monday of the week of Liverpool's first
+// competitive match (Community Shield included), +7 days a week. Checked against
+// Frimpong 23 Oct-15 Dec 2025 (weeks 12-20) and VVD's ACL from 19 Oct 2020 (week 9).
+const FI_SEASON_START = {"17/18":"2017-08-12","18/19":"2018-08-12","19/20":"2019-08-04","20/21":"2020-08-29",
+  "21/22":"2021-08-14","22/23":"2022-07-30","23/24":"2023-08-13","24/25":"2024-08-17","25/26":"2025-08-10","26/27":"2026-08-23"};
+const DAY = 864e5;
+function fiWeek1(s){ const d = new Date(FI_SEASON_START[s] + "T00:00:00Z"); return +d - ((d.getUTCDay() + 6) % 7) * DAY; }
+function fiWeekOf(s, iso){ return Math.floor((+new Date(iso + "T00:00:00Z") - fiWeek1(s)) / (7 * DAY)) + 1; }
+function fiSpells(name){
+  const j = fiInj(name); if (!j) return [];
+  const today = j.as_of || new Date().toISOString().slice(0,10);
+  return (j.spells || []).map(s => ({ ...s, to: s.until || today }));
+}
+function fiInjTitle(s){
+  return `${s.injury || "Injury"} \u2014 ${s.from}${s.until ? " to " + s.until : " (ongoing)"}${s.days != null ? ` (${s.days}d)` : ""}`
+    + `${s.games_missed != null ? ` \u00b7 ${s.club_games_missed ?? s.games_missed} games missed` : ""}`;
+}
+// dashed red box bracketing the stretch of line between index i0 and i1
+function fiInjBox(xs, ys, i0, i1, s){
+  if (i1 < i0) return "";
+  const seg = ys.slice(i0, i1 + 1);
+  const x0 = xs[i0] - 4, x1 = xs[i1] + 4, y0 = Math.min(...seg) - 6, y1 = Math.max(...seg) + 6;
+  return `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${Math.max(12, y1 - y0).toFixed(1)}"
+    rx="3" fill="${FI_BAND.red}" fill-opacity=".06" stroke="${FI_BAND.red}" stroke-width="1.3" stroke-dasharray="3,2"><title>${esc(fiInjTitle(s))}</title></rect>`;
+}
+// boxes over one season's weekly points ({week, ...}); xOf/yOf map a point to the chart
+function fiInjBoxesWeekly(season, pts, xOf, yOf, spells){
+  if (!pts.length || !FI_SEASON_START[season]) return "";
+  const xs = pts.map(xOf), ys = pts.map(yOf);
+  return spells.map(s => {
+    const w0 = fiWeekOf(season, s.from), w1 = fiWeekOf(season, s.to);
+    const idx = pts.map((p, i) => p.week >= w0 && p.week <= w1 ? i : -1).filter(i => i >= 0);
+    return idx.length ? fiInjBox(xs, ys, idx[0], idx[idx.length - 1], s) : "";
+  }).join("");
+}
+
 // one colour per season; the current season keeps the accent and sits on top
 const FI_SEASON_COL = {"17/18":"#9085e9","18/19":"#8fd94a","19/20":"#3987e5","20/21":"#f4a259","21/22":"#d55181",
   "22/23":"#4fb6c8","23/24":"#a9b3ab","24/25":"#e66767","25/26":"#3fbf3f"};
@@ -778,14 +824,18 @@ function fiChart(name){
   for (let w = 1; w <= maxWeek; w += step) g += `<text x="${x(w)}" y="${H-8}" text-anchor="middle">${w}</text>`;
   const lines = shown.filter(sr => !sr.cur).map(sr =>
     `<path d="${path(sr.pts)}" fill="none" stroke="${sr.col}" stroke-width="1.8" opacity=".8" stroke-linejoin="round"><title>${sr.s}</title></path>`).join("");
+  const spells = fiSpells(name);
+  const hist = shown.filter(sr => !sr.cur);
+  const boxed = [series[series.length - 1], ...(hist.length === 1 ? hist : [])];
+  const boxes = boxed.map(sr => fiInjBoxesWeekly(sr.s, sr.pts.filter(p => p.mins != null), p => x(p.week), p => y(p.mins), spells)).join("");
   const dots = played.map(p => `<circle cx="${x(p.week)}" cy="${y(p.mins)}" r="3" fill="var(--accent)"><title>${FI_CUR} week ${p.week}: 4-week average ${p.mins} mins (this week ${p.raw})</title></circle>`).join("");
   const chips = series.map(sr => `<button type="button" class="fi-sea${fiHidden.has(sr.s) && !sr.cur ? " off" : ""}" data-fisea="${sr.s}"${sr.cur ? " disabled" : ""}><i style="background:${sr.col}"></i>${sr.s}</button>`).join("");
   return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="4-week rolling average minutes by season for ${esc(name)}">
     ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>${lines}
-    <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>${dots}
+    <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>${dots}${boxes}
     ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
   </svg>
-  <div class="fi-legend">${chips}<span style="color:var(--ink-faint)">tap a season to hide/show &middot; dashed = ${FI_CUR} season average &middot; 4-week rolling average of minutes per week, all competitions incl. internationals, by week of season</span></div></div>`;
+  <div class="fi-legend">${chips}<span style="color:var(--ink-faint)">tap a season to hide/show &middot; red dashed boxes = injuries (${FI_CUR}; hide all but one past season to see its injuries) &middot; dashed line = ${FI_CUR} season average &middot; 4-week rolling average of minutes per week, all competitions incl. internationals, by week of season</span></div></div>`;
 }
 
 // one continuous 4-week rolling line across every season he has weekly data for, then 26/27
@@ -816,10 +866,15 @@ function fiCareer(name){
     + `<text x="${(x(wc[0]) + x(wc[wc.length-1])) / 2}" y="${T + 11}" text-anchor="middle" style="fill:var(--accent-ink)">World Cup 2026</text>`;
   for (let v = 0; v <= yTop; v += 50) g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
   const d = roll.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.roll).toFixed(1)}`).join("");
+  const xsC = roll.map((p, i) => x(i)), ysC = roll.map(p => y(p.roll));
+  const cboxes = fiSpells(name).map(s => {
+    const idx = roll.map((p, i) => FI_SEASON_START[p.s] && p.week >= fiWeekOf(p.s, s.from) && p.week <= fiWeekOf(p.s, s.to) ? i : -1).filter(i => i >= 0);
+    return idx.length ? fiInjBox(xsC, ysC, idx[0], idx[idx.length - 1], s) : "";
+  }).join("");
   const hov = roll.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.roll).toFixed(1)}" r="3.2" fill="transparent"><title>${p.s} week ${p.week}: 4-week average ${p.roll} mins${p.wc ? " (World Cup 2026, spread evenly)" : ""}</title></circle>`).join("");
   return `<div class="fi-career"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Career 4-week rolling minutes for ${esc(name)}">
     ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>${hov}
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>${cboxes}${hov}
     ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
   </svg></div>`;
 }
@@ -857,7 +912,7 @@ function renderFiPlayer(name){
     ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", riskBadge(m.risk_factor)]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
     <div class="fi-row"><div id="fiChartBox">${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
-    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; dashed = career weekly average</span></div>${fiCareer(name)}</div>
+    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; red dashed boxes = injuries &middot; dashed line = career weekly average</span></div>${fiCareer(name)}</div>
     <div style="margin-top:18px">${fiPublished(name)}</div>
     <div style="margin-top:16px">${fiInjuries(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
