@@ -187,6 +187,16 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 .fi-seasons .bar.proj{background:transparent;border:1px dashed var(--accent);border-bottom:none}
 .fi-seasons .v{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--ink-soft);margin-bottom:3px}
 .fi-seasons .s{font-size:9.5px;color:var(--ink-faint);margin-top:4px;white-space:nowrap}
+.fi-injhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;font-weight:700;font-size:13px;margin-bottom:6px}
+.fi-injhd .sub{font-weight:400;font-size:11.5px;color:var(--ink-faint)}
+.fi-inj{max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.fi-inj div{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px;align-items:center}
+.fi-inj div:last-child{border-bottom:none}
+.fi-inj div.cur{background:var(--red-soft,#3a1a1e)}
+.fi-inj .d{color:var(--ink-soft);font-size:11px}
+.fi-inj .n{color:var(--ink-soft);font-size:11px;white-space:nowrap}
+.fi-inj .now{background:#f8737f;color:#0c1408;border-radius:4px;padding:0 5px;font-size:10px;margin-left:4px}
+@media (max-width:520px){.fi-inj div{grid-template-columns:1fr auto}.fi-inj .d{grid-column:1/-1}}
 tr.fi-sel td{background:var(--accent-soft)}
 tr.fi-pick{cursor:pointer}
 .risk{display:inline-block;min-width:24px;padding:1px 6px;border-radius:5px;font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
@@ -594,6 +604,34 @@ function riskColour(r){
   // the sheet doesn't define bands for Risk Factor, so show it plainly rather than imply good/bad thresholds
   return "var(--surface-3)";
 }
+// Fatigue Index dashboard bands: red > 65, amber 40-65, green < 40 (its own colours)
+const FI_BAND = { red:"#f8737f", amber:"#e6a44b", green:"#4ade80" };
+function fiInj(name){ return (DATA.fi_injuries || {})[name] || null; }
+function fiBadge(name){
+  const j = fiInj(name);
+  if (!j || j.fi_index == null) return `<span class="risk" title="Not ranked in the Fatigue Index this week">&ndash;</span>`;
+  return `<span class="risk" style="background:${FI_BAND[j.fi_band] || "var(--surface-3)"};color:#0c1408" title="Fatigue Index ${j.fi_index} (${j.fi_band})">${Math.round(j.fi_index)}</span>`;
+}
+// mean of the last 4 weekly totals; a week off counts as 0, weeks 1-3 use what there is
+function rolling4(pts){
+  return pts.map((p, i) => {
+    const win = pts.slice(Math.max(0, i - 3), i + 1);
+    return { week:p.week, mins: Math.round(win.reduce((a,q) => a + (q.mins || 0), 0) / win.length), raw:p.mins || 0 };
+  });
+}
+function fiDate(s){ return s ? new Date(s + "T00:00:00").toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"2-digit" }) : ""; }
+function fiInjuries(name){
+  const j = fiInj(name);
+  if (!j) return "";
+  const head = `<div class="fi-injhd"><span>Injury history</span><span class="sub">${j.career_spells} spell${j.career_spells===1?"":"s"} &middot; ${j.spells_last_365} in the last year &middot; prior-injury score ${fiNum(j.prior_injury_score)}</span></div>`;
+  if (!j.spells.length) return `${head}<div class="empty" style="padding:10px 0;text-align:left">No injuries on record.</div>`;
+  return `${head}<div class="fi-inj">${j.spells.map(s => {
+    const gm = s.club_games_missed != null ? s.club_games_missed : s.games_missed;
+    return `<div class="${s.current ? "cur" : ""}"><span class="d mono">${fiDate(s.from)}${s.current ? " &ndash; now" : s.until ? " &ndash; " + fiDate(s.until) : ""}</span>
+      <span class="i">${esc(s.injury || "Unknown")}${s.current ? ` <b class="now">Current</b>` : ""}</span>
+      <span class="n mono">${s.days != null ? s.days + "d" : "&ndash;"}${gm != null ? " &middot; " + gm + " gm" : ""}</span></div>`;
+  }).join("")}</div>`;
+}
 
 function renderFiTable(){
   const fi = DATA.fatigue_index || {};
@@ -606,17 +644,17 @@ function renderFiTable(){
     if (typeof y !== "number") return -1;
     return dir * (x - y);
   });
-  return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th>${FI_COLS.map(([k,l]) =>
+  return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num" title="Published Fatigue Index (Fatigue Index dashboard bands)">FI</th>${FI_COLS.map(([k,l]) =>
       `<th class="num${k===col?" active":""}" data-ficol="${k}">${esc(l)}${k===col?(dir<0?" &darr;":" &uarr;"):""}</th>`).join("")}</tr></thead>
     <tbody>${rows.map(r => `<tr class="fi-pick${r.player===fiPlayer?" fi-sel":""}" data-fiplayer="${esc(r.player)}" tabindex="0">
-      <td>${esc(r.player)}</td>${FI_COLS.map(([k]) => k === "risk_factor"
+      <td>${esc(r.player)}</td><td class="num">${fiBadge(r.player)}</td>${FI_COLS.map(([k]) => k === "risk_factor"
         ? `<td class="num${k===col?" active":""}"><span class="risk" style="background:${riskColour(r[k])}">${fiNum(r[k])}</span></td>`
         : `<td class="num${k===col?" active":""}">${fiNum(r[k], k==="weekly_ave"?2:null)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 function fiChart(name){
-  const cur = ((DATA.fatigue_index[name] || {}).weekly || []);
-  const prev = ((DATA.weekly_2526 || {})[name] || []);
+  const cur = rolling4((DATA.fatigue_index[name] || {}).weekly || []);
+  const prev = rolling4((DATA.weekly_2526 || {})[name] || []);
   const lastPrev = prev.reduce((m,p) => p.mins != null ? Math.max(m, p.week) : m, 0);
   const maxWeek = Math.max(cur.length ? cur[cur.length-1].week : 0, lastPrev, 10);
   const maxMins = Math.max(200, ...cur.map(p=>p.mins||0), ...prev.map(p=>p.mins||0));
@@ -626,19 +664,19 @@ function fiChart(name){
   const y = v => T + (1 - v / yTop) * (H - T - B);
   const path = pts => pts.filter(p => p.mins != null).map((p,i) => `${i?"L":"M"}${x(p.week).toFixed(1)},${y(p.mins).toFixed(1)}`).join("");
   const played = cur.filter(p => p.mins != null);
-  const avg = played.length ? Math.round(played.reduce((a,p)=>a+p.mins,0) / played.length) : null;
+  const avg = played.length ? Math.round(played.reduce((a,p)=>a+p.raw,0) / played.length) : null;
   let g = "";
   for (let v = 0; v <= yTop; v += 50) g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
   const step = maxWeek > 30 ? 5 : maxWeek > 15 ? 2 : 1;
   for (let w = 1; w <= maxWeek; w += step) g += `<text x="${x(w)}" y="${H-8}" text-anchor="middle">${w}</text>`;
-  const dots = played.map(p => `<circle cx="${x(p.week)}" cy="${y(p.mins)}" r="3" fill="var(--accent)"><title>Week ${p.week}: ${p.mins} mins</title></circle>`).join("");
-  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly minutes for ${esc(name)}">
+  const dots = played.map(p => `<circle cx="${x(p.week)}" cy="${y(p.mins)}" r="3" fill="var(--accent)"><title>Week ${p.week}: 4-week average ${p.mins} mins (this week ${p.raw})</title></circle>`).join("");
+  return `<div class="fi-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="4-week rolling average minutes for ${esc(name)}">
     ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
     ${prev.length ? `<path d="${path(prev)}" fill="none" stroke="#3987e5" stroke-width="2" opacity=".55"/>` : ""}
     <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>${dots}
     ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
   </svg>
-  <div class="fi-legend"><span><i style="background:var(--accent)"></i>2026&ndash;27</span>${prev.length ? `<span><i style="background:#3987e5;opacity:.55"></i>2025&ndash;26</span>` : ""}<span><i style="background:var(--ink);opacity:.75"></i>2026&ndash;27 weekly average</span><span style="color:var(--ink-faint)">Minutes per week, all competitions incl. internationals</span></div></div>`;
+  <div class="fi-legend"><span><i style="background:var(--accent)"></i>2026&ndash;27</span>${prev.length ? `<span><i style="background:#3987e5;opacity:.55"></i>2025&ndash;26</span>` : ""}<span><i style="background:var(--ink);opacity:.75"></i>2026&ndash;27 season average</span><span style="color:var(--ink-faint)">4-week rolling average of minutes per week, all competitions incl. internationals</span></div></div>`;
 }
 
 function fiDonut(apps){
@@ -669,11 +707,12 @@ function renderFiPlayer(name){
   const p = (DATA.fatigue_index || {})[name];
   if (!p) return `<div class="empty">Pick a player.</div>`;
   const m = p.metrics || {};
-  const tiles = [["Season mins", fiNum(m.season_mins)], ["LFC mins", fiNum(m.lfc_mins)], ["% started", fiNum(m.pct_started)],
+  const tiles = [["Fatigue Index", fiBadge(name)], ["Season mins", fiNum(m.season_mins)], ["LFC mins", fiNum(m.lfc_mins)], ["% started", fiNum(m.pct_started)],
     ["Weekly ave", fiNum(m.weekly_ave, 2)], ["% vs 3yr ave", fiNum(m.pct_vs_3yr)], ["% vs career max", fiNum(m.pct_vs_career_max)],
     ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", `<span class="risk" style="background:${riskColour(m.risk_factor)}">${fiNum(m.risk_factor)}</span>`]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
     <div class="fi-row"><div>${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
+    <div style="margin-top:16px">${fiInjuries(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
 }
 
