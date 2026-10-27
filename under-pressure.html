@@ -180,6 +180,7 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 .fi-sea.off{opacity:.38}
 .fi-sea.fb{font-style:italic;border-style:dashed}
 .fi-career text.sub{font-size:9px;fill:var(--ink-faint);opacity:.85}
+.fi-career text.sub.fb{font-style:italic}
 .fi-ctab td,.fi-ctab th{font-size:11.5px}
 .fi-sea.off i{background:var(--ink-faint)!important}
 .fi-legend i.dot{width:9px;height:9px;border-radius:50%}
@@ -768,19 +769,35 @@ function fiWeekOf(s, iso){ return Math.floor((+new Date(iso + "T00:00:00Z") - fi
 function fiSpells(name){
   const j = fiInj(name); if (!j) return [];
   const today = j.as_of || new Date().toISOString().slice(0,10);
-  return (j.spells || []).map(s => ({ ...s, to: s.until || today }));
+  const sp = (j.spells || []).map(s => ({ ...s, to: s.until || today })).sort((a, b) => a.from < b.from ? -1 : 1);
+  // overlapping or back-to-back spells (e.g. two Transfermarkt rows for one injury) become one box
+  const out = [];
+  sp.forEach(s => {
+    const last = out[out.length - 1];
+    if (last && +new Date(s.from) <= +new Date(last.to) + DAY) {
+      if (s.to > last.to) last.to = s.to;
+      last.parts.push(s);
+    } else out.push({ ...s, parts: [s] });
+  });
+  return out;
 }
 function fiInjTitle(s){
+  if (s.parts && s.parts.length > 1) return s.parts.map(fiInjTitle).join("\n");
   return `${s.injury || "Injury"} \u2014 ${s.from}${s.until ? " to " + s.until : " (ongoing)"}${s.days != null ? ` (${s.days}d)` : ""}`
     + `${s.games_missed != null ? ` \u00b7 ${s.club_games_missed ?? s.games_missed} games missed` : ""}`;
 }
-// dashed red box bracketing the stretch of line between index i0 and i1
-function fiInjBox(xs, ys, i0, i1, s){
+// dashed red box bracketing the stretch of line between index i0 and i1; with
+// `band` = [top, bottom] it spans the full plot height instead (career chart, where
+// a short spell on a flat stretch would otherwise be a speck)
+function fiInjBox(xs, ys, i0, i1, s, band){
   if (i1 < i0) return "";
   const seg = ys.slice(i0, i1 + 1);
-  const x0 = xs[i0] - 4, x1 = xs[i1] + 4, y0 = Math.min(...seg) - 6, y1 = Math.max(...seg) + 6;
+  let x0 = xs[i0] - 4, x1 = xs[i1] + 4, y0 = Math.min(...seg) - 6, y1 = Math.max(...seg) + 6;
+  if (band) [y0, y1] = band;
+  else if (y1 - y0 < 40) { const m = (y0 + y1) / 2; y0 = m - 20; y1 = m + 20; }
+  if (x1 - x0 < 10) { const m = (x0 + x1) / 2; x0 = m - 5; x1 = m + 5; }
   return `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${Math.max(12, y1 - y0).toFixed(1)}"
-    rx="3" fill="${FI_BAND.red}" fill-opacity=".06" stroke="${FI_BAND.red}" stroke-width="1.3" stroke-dasharray="3,2"><title>${esc(fiInjTitle(s))}</title></rect>`;
+    rx="3" fill="${FI_BAND.red}" fill-opacity="${band ? ".14" : ".06"}" stroke="${FI_BAND.red}" stroke-width="1.3" stroke-dasharray="3,2"><title>${esc(fiInjTitle(s))}</title></rect>`;
 }
 // boxes over one season's weekly points ({week, ...}); xOf/yOf map a point to the chart
 function fiInjBoxesWeekly(season, pts, xOf, yOf, spells){
@@ -848,9 +865,14 @@ function fiSeasonTag(m, s){
   if (!m) return s === FI_CUR ? "Liverpool" : "";
   const clubs = (m.clubs || []).filter(c => c !== "Liverpool");
   const club = (m.clubs || []).length > 1 ? m.clubs.join(" / ") : (m.clubs || [])[0] || "";
-  if (m.source === "fbref") return `${club.length > 20 ? club.slice(0, 19) + "\u2026" : club} \u00b7 FBref +4%`;
-  if (m.source === "sheet+fbref") return `${m.pre_club} \u2192 Liverpool`;
+  if (m.source === "fbref") return club;
+  if (m.source === "sheet+fbref") return (m.clubs || []).includes("Liverpool") ? `${m.pre_club} \u2192 Liverpool` : club;
   return clubs.length ? club : "Liverpool";
+}
+// trim a band label to the band's width (9px mono is ~5.4px a character)
+function fiFit(txt, w){
+  const n = Math.max(0, Math.floor((w - 6) / 5.4));
+  return txt.length <= n ? txt : n > 2 ? txt.slice(0, n - 1) + "\u2026" : "";
 }
 function fiCareerTable(name){
   const rows = ((DATA.career_table || {})[name] || []).slice().reverse();
@@ -889,7 +911,7 @@ function fiCareer(name){
     const xa = k ? (x(a) + x(a-1)) / 2 : L, xb = b === n - 1 ? W - R : (x(b) + x(b+1)) / 2;
     g += `<rect x="${xa}" y="${T}" width="${xb - xa}" height="${H - T - B}" fill="${k % 2 ? "var(--surface-2)" : "transparent"}"/>`
        + `<text x="${(xa + xb) / 2}" y="${T - 19}" text-anchor="middle"${s === FI_CUR ? ' style="fill:var(--accent-ink)"' : ""}>${s}</text>`
-       + `<text class="sub" x="${(xa + xb) / 2}" y="${T - 7}" text-anchor="middle">${esc(fiSeasonTag(cmeta[s], s))}</text>`;
+       + `<text class="sub${(cmeta[s] || {}).source && cmeta[s].source.includes("fbref") ? " fb" : ""}" x="${(xa + xb) / 2}" y="${T - 7}" text-anchor="middle"><title>${esc(fiSeasonTag(cmeta[s], s) + ((cmeta[s] || {}).source === "fbref" ? " \u00b7 FBref +4%" : (cmeta[s] || {}).source === "sheet+fbref" ? " \u00b7 pre-Liverpool weeks FBref +4%" : ""))}</title>${esc(fiFit(fiSeasonTag(cmeta[s], s), xb - xa))}</text>`;
   });
   const wc = roll.map((p, i) => p.wc ? i : -1).filter(i => i >= 0);
   if (wc.length) g += `<rect x="${x(wc[0]) - 2}" y="${T}" width="${x(wc[wc.length-1]) - x(wc[0]) + 4}" height="${H - T - B}" fill="var(--accent-soft)" opacity=".8"/>`
@@ -899,7 +921,7 @@ function fiCareer(name){
   const xsC = roll.map((p, i) => x(i)), ysC = roll.map(p => y(p.roll));
   const cboxes = fiSpells(name).map(s => {
     const idx = roll.map((p, i) => FI_SEASON_START[p.s] && p.week >= fiWeekOf(p.s, s.from) && p.week <= fiWeekOf(p.s, s.to) ? i : -1).filter(i => i >= 0);
-    return idx.length ? fiInjBox(xsC, ysC, idx[0], idx[idx.length - 1], s) : "";
+    return idx.length ? fiInjBox(xsC, ysC, idx[0], idx[idx.length - 1], s, [T, H - B]) : "";
   }).join("");
   const hov = roll.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.roll).toFixed(1)}" r="3.2" fill="transparent"><title>${p.s} week ${p.week}: 4-week average ${p.roll} mins${p.wc ? " (World Cup 2026, spread evenly)" : ""}${p.fb ? " (FBref +4%)" : ""}</title></circle>`).join("");
   return `<div class="fi-career"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Career 4-week rolling minutes for ${esc(name)}">
@@ -942,7 +964,7 @@ function renderFiPlayer(name){
     ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", riskBadge(m.risk_factor)]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
     <div class="fi-row"><div id="fiChartBox">${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
-    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; red dashed boxes = injuries &middot; dashed line = career weekly average</span></div>${fiCareer(name)}${fiCareerTable(name)}</div>
+    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; red bands = injuries &middot; italic club = FBref +4% &middot; dashed line = career weekly average</span></div>${fiCareer(name)}${fiCareerTable(name)}</div>
     <div style="margin-top:18px">${fiPublished(name)}</div>
     <div style="margin-top:16px">${fiInjuries(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
