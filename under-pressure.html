@@ -231,6 +231,30 @@ tr.fi-pick{cursor:pointer}
   .wrap{padding-inline:16px}
   td,th{padding:6px 7px;font-size:12px}
 }
+.fi-sum{margin:2px 0 8px;font-size:12.5px;color:var(--ink-soft)}
+.fi-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.fi-pat td,.fi-pat th{white-space:nowrap}
+.fi-pat .sub{color:var(--ink-faint);font-size:11px}
+.fi-pat b.fast{font-size:10px;color:#1a1206;background:#e6a44b;border-radius:4px;padding:0 4px;margin-left:3px}
+.fi-strip{margin:4px 0 8px}.fi-strip svg{width:100%;height:34px;display:block}
+.fi-strip text{font-size:9px;fill:var(--ink-faint)}.fi-strip .gl{stroke:var(--line);stroke-width:1}
+.hm-wrap{max-width:100%}
+.hm-tab{border-collapse:separate;border-spacing:2px;width:auto}
+.hm-tab th,.hm-tab td{padding:0}
+.hm-tab .hm-name{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;padding:0 8px 0 0;font-size:12px;font-weight:500;white-space:nowrap}
+.hm-tab thead .hm-wk{font-size:9px;color:var(--ink-faint);font-weight:400;min-width:16px;text-align:center;vertical-align:bottom;position:relative}
+.hm-tab thead .hm-wk span{position:absolute;bottom:14px;left:0;font-size:9.5px;color:var(--ink-soft);white-space:nowrap}
+.hm-tab thead tr{height:30px}
+.hm-tab .hm-split{box-shadow:-2px 0 0 var(--accent)}
+.hm{width:16px;height:16px;min-width:16px;background:var(--surface-2);border-radius:3px;position:relative;cursor:default}
+.hm i{position:absolute;inset:0;border-radius:3px;background:var(--accent)}
+.hm.out{background:var(--surface-3);opacity:.45}
+.hm.inj{box-shadow:0 0 0 1.5px #f8737f inset}
+.hm-tot{font-size:11px;padding-left:8px !important;color:var(--ink-soft)}
+.hm-n{font-size:10px;text-align:center;color:var(--ink-faint)}.hm-n.hi{color:#f8737f;font-weight:700}
+.hm-key{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--ink-faint);margin-top:8px}
+.hm-key .k{display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--accent);margin-right:2px;vertical-align:-1px}
+.hm-key .k.inj{background:var(--surface-2);box-shadow:0 0 0 1.5px #f8737f inset}.hm-key .k.out{background:var(--surface-3);opacity:.45}
 .inj-name{color:#f8737f;font-weight:600;cursor:help}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -964,6 +988,151 @@ function fiSeasons(tot){
   }).join("")}</div>`;
 }
 
+// ---------- injury patterns (load before, return ramp, recurrence) and squad availability ----------
+// every week on record for a player, keyed by the Monday that starts it (same week mapping as the injury boxes)
+function fiStream(name){
+  const hist = Object.assign({}, (DATA.weekly_history || {})[name] || {});
+  if (!hist["25/26"] && (DATA.weekly_2526 || {})[name]) hist["25/26"] = DATA.weekly_2526[name];
+  const cmeta = (DATA.career_meta || {})[name] || {};
+  const out = [];
+  Object.keys(hist).sort().forEach(s => {
+    if (!FI_SEASON_START[s] || !(hist[s] || []).some(p => (p.mins || 0) > 0)) return;
+    hist[s].forEach(p => out.push({ s, week:p.week, t:fiWeek1(s) + (p.week - 1) * 7 * DAY, mins:p.mins || 0, wc:p.wc,
+      fb:p.fb || (cmeta[s] || {}).source === "fbref" }));
+  });
+  ((DATA.fatigue_index[name] || {}).weekly || []).forEach(p => out.push({ s:FI_CUR, week:p.week, t:fiWeek1(FI_CUR) + (p.week - 1) * 7 * DAY, mins:p.mins || 0 }));
+  const byT = new Map(out.map(p => [p.t, p]));
+  return { pts:out, byT, first: out.length ? out[0].t : null, last: out.length ? out[out.length - 1].t : null };
+}
+const fiMonday = iso => { const d = +new Date(iso + "T00:00:00Z"); return d - ((new Date(d).getUTCDay() + 6) % 7) * DAY; };
+// mean weekly minutes over n weeks starting at Monday t0; weeks with no row (summer break) count as 0.
+// null when the window starts before his first week on record, runs past the last one,
+// or is mostly summer break (fewer than 2 weeks with a row)
+function fiWindow(st, t0, n){
+  if (st.first == null || t0 < st.first || t0 + (n - 1) * 7 * DAY > st.last) return null;
+  let sum = 0, fb = false, rows = 0;
+  for (let k = 0; k < n; k++){ const p = st.byT.get(t0 + k * 7 * DAY); if (p){ sum += p.mins; fb = fb || p.fb; rows++; } }
+  return rows >= 2 ? { mean: sum / n, fb } : null;
+}
+const FI_PARTS = [["hamstring","Hamstring","#f8737f"], ["muscle","Thigh / muscle","#e6a44b"], ["knee","Knee","#9085e9"],
+  ["ankle","Ankle / ligament","#3987e5"], ["illness","Illness","#8a948c"], ["other","Other","#4fb6c8"]];
+function fiPart(inj){
+  const s = (inj || "").toLowerCase();
+  if (/hamstring/.test(s)) return "hamstring";
+  if (/knee|cruciate|patellar|menisc/.test(s)) return "knee";
+  if (/thigh|muscle|muscular|adductor|groin|calf|hip flexor|quad|strain/.test(s)) return "muscle";
+  if (/ankle|ligament|syndesmo|foot|achilles|fibula/.test(s)) return "ankle";
+  if (/ill|virus|corona|flu|fever|tonsil|stomach|quarantine/.test(s)) return "illness";
+  return "other";
+}
+function fiPatternRows(name){
+  const j = fiInj(name); if (!j) return null;
+  const st = fiStream(name), spells = fiSpells(name);
+  const inj = t => spells.some(s => t + 7 * DAY > +new Date(s.from + "T00:00:00Z") && t <= +new Date(s.to + "T00:00:00Z"));
+  const fit = st.pts.filter(p => !inj(p.t));
+  const career = fit.length ? fit.reduce((a, p) => a + p.mins, 0) / fit.length : null;
+  const asOf = j.as_of || new Date().toISOString().slice(0, 10);
+  const rows = spells.map((s, i) => {
+    const on = fiMonday(s.from);
+    const pre = fiWindow(st, on - 4 * 7 * DAY, 4), prev = fiWindow(st, on - 8 * 7 * DAY, 4);
+    const done = s.until && s.until <= asOf;
+    const ret = done ? fiMonday(s.to) + 7 * DAY : null;
+    const post = done ? fiWindow(st, ret, 4) : null;
+    const next = spells[i + 1];
+    const gapNext = done && next ? Math.round((+new Date(next.from) - +new Date(s.to)) / DAY) : null;
+    // a ramp against a month he barely played (early season, already managed) says little
+    const lowBase = pre && career ? pre.mean < 0.5 * career : false;
+    return { s, part: fiPart(s.injury), pre, prev, post, done, gapNext, lowBase,
+      vsCareer: pre && career ? pre.mean / career - 1 : null,
+      spike: pre && prev && prev.mean > 0 ? pre.mean / prev.mean : null,
+      ramp: pre && post && pre.mean > 0 ? post.mean / pre.mean : null };
+  });
+  return { rows, career };
+}
+const fiPct = v => v == null ? "&ndash;" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
+function fiPatterns(name){
+  const P = fiPatternRows(name);
+  if (!P || !P.rows.length) return "";
+  const { rows, career } = P;
+  const withPre = rows.filter(r => r.pre);
+  const above = withPre.filter(r => r.vsCareer > 0).length;
+  const fast = rows.filter(r => r.ramp != null && r.ramp > 0.8 && !r.lowBase);
+  const fastAgain = fast.filter(r => r.gapNext != null && r.gapNext <= 90).length;
+  const lines = [];
+  if (withPre.length) lines.push(`${above} of ${withPre.length} injur${withPre.length === 1 ? "y" : "ies"} followed a month above his career average of ${Math.round(career)} mins a week.`);
+  if (fast.length) lines.push(`${fast.length} return${fast.length === 1 ? " was a" : "s were"} fast ramp${fast.length === 1 ? "" : "s"} (over 80% of his pre-injury load within 4 weeks). ${fastAgain} of ${fast.length} had another injury within 90 days.`);
+  const fbNote = r => (r.pre && r.pre.fb) || (r.post && r.post.fb) ? ` title="Includes FBref +4% weeks"` : "";
+  const table = `<div class="tablewrap"><table class="fi-pat"><thead><tr><th class="playercol">Injury</th><th>From</th>
+      <th class="num" title="Mean weekly minutes, 4 weeks before onset">Load before</th><th class="num" title="Load before vs career weekly average (injured weeks left out)">vs career</th>
+      <th class="num" title="Load before vs the 4 weeks before that">Spike</th><th class="num" title="Mean weekly minutes in weeks 1 to 4 after return, as % of load before">Return ramp</th>
+      <th class="num" title="Days from return to the next injury">Next injury</th></tr></thead><tbody>${rows.slice().reverse().map(r => {
+      const col = (FI_PARTS.find(p => p[0] === r.part) || [])[2];
+      return `<tr${fbNote(r)}><td><span class="fi-dot" style="background:${col}"></span>${esc(r.s.injury || "Unknown")}${r.s.parts && r.s.parts.length > 1 ? ` <span class="sub">(${r.s.parts.length} entries)</span>` : ""}</td>
+      <td class="mono">${fiDate(r.s.from)}</td>
+      <td class="num">${r.pre ? Math.round(r.pre.mean) + (r.pre.fb ? "*" : "") : "&ndash;"}</td>
+      <td class="num" style="color:${r.vsCareer == null ? "inherit" : r.vsCareer > 0 ? FI_BAND.red : FI_BAND.green}">${fiPct(r.vsCareer)}</td>
+      <td class="num"${r.spike != null && r.spike >= 1.3 ? ` style="color:${FI_BAND.red}"` : ""}>${r.spike == null ? "&ndash;" : r.spike.toFixed(2)}</td>
+      <td class="num">${!r.done ? "out" : r.ramp == null ? "&ndash;" : r.lowBase ? `<span class="sub" title="Load before was under half his career average, so the ramp is not compared">${Math.round(r.ramp * 100)}%</span>` : Math.round(r.ramp * 100) + "%" + (r.ramp > 0.8 ? ` <b class="fast">fast</b>` : "")}</td>
+      <td class="num"${r.gapNext != null && r.gapNext <= 90 ? ` style="color:${FI_BAND.red}"` : ""}>${r.gapNext == null ? "&ndash;" : r.gapNext + "d"}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  return `<div class="fi-injhd"><span>Load around injuries</span><span class="sub">4 weeks before onset vs career average &middot; spike = vs the 4 weeks before that &middot; grey ramp = low base, not counted &middot; * includes FBref +4% weeks</span></div>
+    ${lines.length ? `<p class="fi-sum">${lines.join(" ")}</p>` : ""}${table}${fiRecurrence(name, rows)}`;
+}
+function fiRecurrence(name, rows){
+  const spells = rows.map(r => r);
+  const groups = FI_PARTS.map(([k, l, c]) => ({ k, l, c, rs: spells.filter(r => r.part === k) })).filter(g => g.rs.length);
+  const t0 = +new Date(Math.min(...spells.map(r => +new Date(r.s.from))));
+  const first = fiStream(name).first, start = Math.min(t0, first || t0), end = Date.now();
+  const W = 640, H = 34, L = 4, R = 4, x = t => L + (t - start) / Math.max(1, end - start) * (W - L - R);
+  let ticks = "";
+  for (let y = new Date(start).getUTCFullYear() + 1; y <= new Date(end).getUTCFullYear(); y++){
+    const tx = x(Date.UTC(y, 0, 1)); ticks += `<line x1="${tx}" x2="${tx}" y1="4" y2="${H - 12}" class="gl"/><text x="${tx}" y="${H - 2}" text-anchor="middle">${String(y).slice(2)}</text>`;
+  }
+  const marks = spells.map(r => { const c = FI_PARTS.find(p => p[0] === r.part)[2];
+    const a = x(+new Date(r.s.from)), b = x(+new Date(r.s.to)) ;
+    return `<rect x="${a.toFixed(1)}" y="6" width="${Math.max(4, b - a).toFixed(1)}" height="${H - 20}" rx="2" fill="${c}"><title>${esc(fiInjTitle(r.s))}</title></rect>`; }).join("");
+  const tbl = groups.map(g => {
+    const gaps = g.rs.slice(1).map((r, i) => { const p = g.rs[i]; return p.done ? Math.round((+new Date(r.s.from) - +new Date(p.s.to)) / DAY) : null; });
+    const trend = gaps.map((d, i) => d == null ? "" : i === 0 || gaps[i - 1] == null ? `${d}d` : `${d}d ${d > gaps[i - 1] ? "&uarr; longer" : d < gaps[i - 1] ? "&darr; shorter" : "same"}`);
+    return `<tr><td><span class="fi-dot" style="background:${g.c}"></span>${g.l}</td><td class="num">${g.rs.length}</td>
+      <td>${trend.filter(Boolean).join(" &middot; ") || "&ndash;"}</td></tr>`; }).join("");
+  return `<div class="fi-injhd" style="margin-top:14px"><span>Recurrence by body part</span><span class="sub">days fit between spells of the same kind &middot; arrow = longer or shorter than the gap before</span></div>
+    <div class="fi-strip"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Injury timeline for ${esc(name)}">${ticks}${marks}</svg></div>
+    <div class="tablewrap"><table class="fi-pat"><thead><tr><th class="playercol">Body part</th><th class="num">Spells</th><th>Days between spells</th></tr></thead><tbody>${tbl}</tbody></table></div>`;
+}
+
+// squad availability: players by 26/27 minutes, last 10 weeks of 25/26 plus every 26/27 week
+function fiAvail(){
+  const players = fiPlayers().slice().sort((a, b) => ((DATA.fatigue_index[b].metrics || {}).season_mins || 0) - ((DATA.fatigue_index[a].metrics || {}).season_mins || 0));
+  const cols = [];
+  const prevAll = Object.values(DATA.weekly_history || {}).concat(Object.values(DATA.weekly_2526 || {}).map(v => ({"25/26": v})))
+    .map(h => (h["25/26"] || []).length ? h["25/26"][h["25/26"].length - 1].week : 0);
+  const prevLast = Math.max(0, ...prevAll);
+  for (let w = Math.max(1, prevLast - 9); w <= prevLast; w++) cols.push({ s:"25/26", week:w });
+  const curLast = Math.max(0, ...players.map(n => ((DATA.fatigue_index[n].weekly || []).slice(-1)[0] || {}).week || 0));
+  for (let w = 1; w <= curLast; w++) cols.push({ s:FI_CUR, week:w });
+  cols.forEach(c => { c.t = fiWeek1(c.s) + (c.week - 1) * 7 * DAY; });
+  const injCount = cols.map(() => 0);
+  const body = players.map(n => {
+    const st = fiStream(n), spells = fiSpells(n);
+    let tot = 0;
+    const cells = cols.map((c, ci) => {
+      const p = st.byT.get(c.t), m = p ? p.mins : null;
+      const s = spells.find(s => c.t + 7 * DAY > +new Date(s.from + "T00:00:00Z") && c.t <= +new Date(s.to + "T00:00:00Z"));
+      if (s) injCount[ci]++;
+      if (m) tot += m;
+      const a = m ? Math.min(1, 0.18 + m / 200 * 0.82) : 0;
+      const tip = `${c.s} week ${c.week} (w/c ${fiDate(new Date(c.t).toISOString().slice(0, 10))}): ${m == null ? "no data" : m + " mins"}${p && p.wc ? " (World Cup, spread evenly)" : ""}${p && p.fb ? " (FBref +4%)" : ""}${s ? ". Injured: " + (s.injury || "injury") : ""}`;
+      return `<td class="hm${s ? " inj" : ""}${!m && !s ? " out" : ""}" title="${esc(tip)}">${m ? `<i style="opacity:${a.toFixed(2)}"></i>` : ""}</td>`;
+    }).join("");
+    return `<tr><th class="hm-name">${pname(n)}</th>${cells}<td class="num hm-tot">${Math.round(tot).toLocaleString("en-GB")}</td></tr>`;
+  }).join("");
+  const head = `<tr><th class="hm-name"></th>${cols.map((c, i) => `<th class="hm-wk${c.s === FI_CUR && c.week === 1 ? " hm-split" : ""}" title="${c.s} week ${c.week}">${c.week === 1 || i === 0 ? `<span>${c.s}</span>` : ""}${c.week}</th>`).join("")}<th class="num">Mins</th></tr>`;
+  const foot = `<tr><th class="hm-name">Injured</th>${injCount.map(k => `<td class="hm-n${k >= 4 ? " hi" : ""}">${k || ""}</td>`).join("")}<td></td></tr>`;
+  return `<div class="tablewrap hm-wrap"><table class="hm-tab"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
+    <div class="hm-key"><span><i class="k" style="opacity:.3"></i><i class="k" style="opacity:.65"></i><i class="k"></i> minutes that week</span><span><i class="k inj"></i> injured</span><span><i class="k out"></i> not involved</span></div>`;
+}
+
 function renderFiPlayer(name){
   const p = (DATA.fatigue_index || {})[name];
   if (!p) return `<div class="empty">Pick a player.</div>`;
@@ -976,6 +1145,7 @@ function renderFiPlayer(name){
     <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; dashed red boxes = injuries &middot; italic club = FBref +4% &middot; dashed line = career weekly average</span></div>${fiCareer(name)}${fiCareerTable(name)}</div>
     <div style="margin-top:18px">${fiPublished(name)}</div>
     <div style="margin-top:16px">${fiInjuries(name)}</div>
+    <div style="margin-top:16px">${fiPatterns(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
 }
 
@@ -984,6 +1154,8 @@ function renderFatigueTab(){
   if (!players.length) return `<div class="empty">No Fatigue Index data yet.</div>`;
   if (!fiPlayer || !players.includes(fiPlayer)) fiPlayer = players.includes("VVD") ? "VVD" : players[0];
   return `<div class="stack">
+    <div class="card"><div class="hd"><h2>Squad availability</h2><span class="sub">last 10 weeks of 2025&ndash;26 and every 2026&ndash;27 week &middot; tap a cell for detail</span></div>
+      <div class="bd">${fiAvail()}</div></div>
     <div class="card"><div class="hd"><h2 id="fiName">${pname(fiPlayer)}</h2><span class="sub">Fatigue Index &middot; 2026&ndash;27</span></div>
       <div class="bd" id="fiPlayer">${renderFiPlayer(fiPlayer)}</div></div>
     <div class="card"><div class="hd"><h2>Squad load</h2><span class="sub">tap a player &middot; tap a column to sort &middot; <span class="inj-name" style="cursor:default">Red name</span> = currently injured</span></div>
