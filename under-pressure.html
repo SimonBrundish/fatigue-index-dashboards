@@ -231,6 +231,7 @@ tr.fi-pick{cursor:pointer}
   .wrap{padding-inline:16px}
   td,th{padding:6px 7px;font-size:12px}
 }
+.inj-name{color:#f8737f;font-weight:600;cursor:help}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -397,7 +398,7 @@ function renderSquadSummary(records){
     return squadSort.dir === -1 ? (bv - av) : (av - bv);
   });
   let head = `<th class="playercol">Player</th>` + cols.map(([k,l]) => `<th class="num${squadSort.col===k?' active':''}" data-col="${k}">${esc(l)}</th>`).join("");
-  let body = rows.map(r => `<tr><td>${esc(r.player)}</td>` + cols.map(([k]) => {
+  let body = rows.map(r => `<tr><td>${pname(r.player)}</td>` + cols.map(([k]) => {
     const v = r[k];
     return `<td class="num">${v===null||v===undefined ? "&ndash;" : (Number.isInteger(v)?v:v.toFixed( k==='PassPct'||k==='RatingAvg' ? (k==='RatingAvg'?2:1) : 0))}</td>`;
   }).join("") + `</tr>`).join("");
@@ -451,7 +452,7 @@ function renderMatchDetail(matches, records){
   const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " \u2014 " + XT100_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
   const head = groupRow + colRow;
   const allCols = groups.flatMap(([,cols]) => cols);
-  let body = recs.map(r => `<tr><td>${esc(r.player)}</td>` + allCols.map(c => {
+  let body = recs.map(r => `<tr><td>${pname(r.player)}</td>` + allCols.map(c => {
     const v = r.stats[c];
     return `<td class="num${matchSort.col===c?' active':''}">${v===undefined? "&ndash;" : v}</td>`;
   }).join("") + `</tr>`).join("");
@@ -461,7 +462,7 @@ function renderMatchDetail(matches, records){
     ? `<div class="bd" style="padding-top:0">${events.map(e => `
         <div class="feed-item" style="padding:8px 0">
           <div class="feed-ico">\u{1F525}</div>
-          <div class="feed-txt"><b>${esc(e.player)}</b> hit a season high: <b>${e.value}</b> ${esc(label(e.metric))}</div>
+          <div class="feed-txt"><b>${pname(e.player)}</b> hit a season high: <b>${e.value}</b> ${esc(label(e.metric))}</div>
         </div>`).join("")}</div>`
     : `<div class="empty" style="padding:16px">No season highs set in this match (within the headline metric set).</div>`;
 
@@ -499,7 +500,7 @@ function renderLeaderboard(records){
 
   const rows = top.map((e,i) => `
     <tr>
-      <td><span class="rank${i===0 && lbDir===bestDir(lbMetric) ?' g':''}">${i+1}</span>${esc(e.player)}</td>
+      <td><span class="rank${i===0 && lbDir===bestDir(lbMetric) ?' g':''}">${i+1}</span>${pname(e.player)}</td>
       <td class="num">${fmtVal(lbMetric, e.value)}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4, Math.abs(e.value)/max*100)}%"></div></div></td>
       <td><span class="pill comp-${esc(e.competition)}">${esc(e.competition)}</span></td>
       <td>${esc(e.match)}</td>
@@ -517,7 +518,7 @@ function renderLeaderboard(records){
       ${QUICK_METRICS.map(m => `<button class="chip" data-metric="${esc(m)}" aria-pressed="${m===lbMetric}">${esc(label(m))}</button>`).join("")}
     </div>
     ${metricNote(lbMetric)}${lbMetric === XT100 ? `<div class="empty" style="padding:0 0 10px;text-align:left;font-size:11.5px">Per match, only games with 20+ touches.</div>` : ""}
-    ${seasonHigh ? `<div class="empty" style="padding:8px 0 14px;text-align:left;color:var(--ink-soft)">Season high so far: <b style="color:var(--ink)">${esc(seasonHigh.player)}</b> &mdash; ${seasonHigh.value} vs ${esc(seasonHigh.opponent)} (${fmtDate(seasonHigh.date)})</div>` : ""}
+    ${seasonHigh ? `<div class="empty" style="padding:8px 0 14px;text-align:left;color:var(--ink-soft)">Season high so far: <b style="color:var(--ink)">${pname(seasonHigh.player)}</b> &mdash; ${seasonHigh.value} vs ${esc(seasonHigh.opponent)} (${fmtDate(seasonHigh.date)})</div>` : ""}
     <div class="tablewrap"><table>
       <thead><tr><th class="playercol">Player</th><th class="num">${esc(label(lbMetric))}</th><th>Comp</th><th>Match</th><th>Date</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="empty">No data for this metric in this competition scope.</td></tr>`}</tbody>
@@ -552,7 +553,7 @@ function renderSeasonRates(){
   const top = srAll ? ranked : ranked.slice(0,10);
   const max = top.length ? Math.max(...top.map(e=>Math.abs(e.value)),1) : 1;
   const row = (e, i, grey) => `
-    <tr${grey ? ' style="opacity:.45"' : ""}><td><span class="rank${!grey && i===0 && srDir===bestDir(srMetric)?' g':''}">${grey ? "&ndash;" : i+1}</span>${esc(e.player)}${isXt ? `<span style="color:var(--ink-faint);font-size:10.5px"> &middot; ${(xt[e.player]||{}).touches ?? "?"} touches</span>` : ""}</td>
+    <tr${grey ? ' style="opacity:.45"' : ""}><td><span class="rank${!grey && i===0 && srDir===bestDir(srMetric)?' g':''}">${grey ? "&ndash;" : i+1}</span>${pname(e.player)}${isXt ? `<span style="color:var(--ink-faint);font-size:10.5px"> &middot; ${(xt[e.player]||{}).touches ?? "?"} touches</span>` : ""}</td>
     <td class="num">${typeof e.mins === "number" ? e.mins : "&ndash;"}</td>
     <td class="num">${fmtVal(srMetric, e.value)}<div class="bar-bg"><div class="bar-fg" style="width:${Math.max(4,Math.abs(e.value)/max*100)}%"></div></div></td></tr>`;
   const rows = top.map((e,i) => row(e, i, false)).join("")
@@ -582,7 +583,7 @@ function renderHighsFeed(records){
     <div class="feed-item">
       <div class="feed-ico">\u{1F525}</div>
       <div>
-        <div class="feed-txt"><b>${esc(e.player)}</b> &mdash; <b>${e.value}</b> ${esc(label(e.metric))}, a new season high</div>
+        <div class="feed-txt"><b>${pname(e.player)}</b> &mdash; <b>${e.value}</b> ${esc(label(e.metric))}, a new season high</div>
         <div class="feed-meta">vs ${esc(e.opponent)} <span class="pill comp-${esc(e.competition)}">${esc(e.competition)}</span> &middot; ${fmtDate(e.date)}</div>
       </div>
     </div>`).join("")}</div>`;
@@ -595,7 +596,7 @@ function renderInternationals(){
     .sort((a,b) => b.Goals - a.Goals || b.Assists - a.Assists || b.Mins - a.Mins);
   if (!rows.length) return `<div class="empty">No international caps logged yet this window.</div>`;
   return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num">Mins</th><th class="num">Gls</th><th class="num">Ast</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><td>${esc(r.player)}</td><td class="num">${r.Mins}</td><td class="num">${r.Goals}</td><td class="num">${r.Assists}</td></tr>`).join("")}</tbody></table></div>`;
+    <tbody>${rows.map(r => `<tr><td>${pname(r.player)}</td><td class="num">${r.Mins}</td><td class="num">${r.Goals}</td><td class="num">${r.Assists}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderAllCombined(records){
@@ -614,7 +615,7 @@ function renderAllCombined(records){
     <th class="num">Club Gls</th><th class="num">Club Ast</th>
     <th class="num">Intl Gls</th><th class="num">Intl Ast</th>
     <th class="num">Total Gls</th><th class="num">Total Ast</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><td>${esc(r.player)}</td>
+    <tbody>${rows.map(r => `<tr><td>${pname(r.player)}</td>
       <td class="num">${r.cGoals}</td><td class="num">${r.cAssists}</td>
       <td class="num">${r.iGoals}</td><td class="num">${r.iAssists}</td>
       <td class="num">${r.tGoals}</td><td class="num">${r.tAssists}</td></tr>`).join("")}</tbody></table></div>`;
@@ -657,6 +658,16 @@ function riskBadge(r){
   return `<span class="risk" style="background:${riskColour(r)}${banded ? ";color:#0c1408" : ""}" title="Risk factor: 6 and below green, 7&ndash;11 amber, above 11 red">${fiNum(r)}</span>`;
 }
 function fiInj(name){ return (DATA.fi_published || {})[name] || null; }
+// a player's open spell (no return date yet, or one still in the future)
+function fiCurrentSpell(name){
+  const j = fiInj(name); if (!j) return null;
+  return (j.spells || []).filter(s => s.current || !s.until).sort((a, b) => a.from < b.from ? 1 : -1)[0] || null;
+}
+// player name, in red with the injury on hover when he is currently injured
+function pname(name){
+  const s = fiCurrentSpell(name);
+  return s ? `<span class="inj-name" title="Injured since ${esc(fiDate(s.from))}: ${esc(s.injury || "injury")}">${esc(name)}</span>` : esc(name);
+}
 const FI_SCORELAB = {injury_hist:"Prior injury burden", season_load:"Season load vs history",
   congestion:"Fixture congestion", min_acwr:"Minutes ACWR", hi_acwr:"Hi-intensity ACWR",
   sprint_spike:"Sprint load spike", hi_pct_swing:"Hi-speed % swing", age_youth:"Age / youth",
@@ -752,7 +763,7 @@ function renderFiTable(){
   return `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num" title="Published Fatigue Index (Fatigue Index dashboard bands)">FI</th>${FI_COLS.map(([k,l]) =>
       `<th class="num${k===col?" active":""}" data-ficol="${k}">${esc(l)}${k===col?(dir<0?" &darr;":" &uarr;"):""}</th>`).join("")}</tr></thead>
     <tbody>${rows.map(r => `<tr class="fi-pick${r.player===fiPlayer?" fi-sel":""}" data-fiplayer="${esc(r.player)}" tabindex="0">
-      <td>${esc(r.player)}</td><td class="num">${fiBadge(r.player)}</td>${FI_COLS.map(([k]) => k === "risk_factor"
+      <td>${pname(r.player)}</td><td class="num">${fiBadge(r.player)}</td>${FI_COLS.map(([k]) => k === "risk_factor"
         ? `<td class="num${k===col?" active":""}">${riskBadge(r[k])}</td>`
         : `<td class="num${k===col?" active":""}">${fiNum(r[k], k==="weekly_ave"?2:null)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
@@ -786,18 +797,16 @@ function fiInjTitle(s){
   return `${s.injury || "Injury"} \u2014 ${s.from}${s.until ? " to " + s.until : " (ongoing)"}${s.days != null ? ` (${s.days}d)` : ""}`
     + `${s.games_missed != null ? ` \u00b7 ${s.club_games_missed ?? s.games_missed} games missed` : ""}`;
 }
-// dashed red box bracketing the stretch of line between index i0 and i1; with
-// `band` = [top, bottom] it spans the full plot height instead (career chart, where
-// a short spell on a flat stretch would otherwise be a speck)
-function fiInjBox(xs, ys, i0, i1, s, band){
+// dashed red box bracketing the stretch of line between index i0 and i1, at least
+// `minW` wide and `minH` tall so a short spell on a flat stretch stays visible
+function fiInjBox(xs, ys, i0, i1, s, minW = 10, minH = 40){
   if (i1 < i0) return "";
   const seg = ys.slice(i0, i1 + 1);
   let x0 = xs[i0] - 4, x1 = xs[i1] + 4, y0 = Math.min(...seg) - 6, y1 = Math.max(...seg) + 6;
-  if (band) [y0, y1] = band;
-  else if (y1 - y0 < 40) { const m = (y0 + y1) / 2; y0 = m - 20; y1 = m + 20; }
-  if (x1 - x0 < 10) { const m = (x0 + x1) / 2; x0 = m - 5; x1 = m + 5; }
-  return `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${Math.max(12, y1 - y0).toFixed(1)}"
-    rx="3" fill="${FI_BAND.red}" fill-opacity="${band ? ".14" : ".06"}" stroke="${FI_BAND.red}" stroke-width="1.3" stroke-dasharray="3,2"><title>${esc(fiInjTitle(s))}</title></rect>`;
+  if (y1 - y0 < minH) { const m = (y0 + y1) / 2; y0 = m - minH / 2; y1 = m + minH / 2; }
+  if (x1 - x0 < minW) { const m = (x0 + x1) / 2; x0 = m - minW / 2; x1 = m + minW / 2; }
+  return `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}"
+    rx="3" fill="${FI_BAND.red}" fill-opacity=".1" stroke="${FI_BAND.red}" stroke-width="1.3" stroke-dasharray="3,2"><title>${esc(fiInjTitle(s))}</title></rect>`;
 }
 // boxes over one season's weekly points ({week, ...}); xOf/yOf map a point to the chart
 function fiInjBoxesWeekly(season, pts, xOf, yOf, spells){
@@ -921,7 +930,7 @@ function fiCareer(name){
   const xsC = roll.map((p, i) => x(i)), ysC = roll.map(p => y(p.roll));
   const cboxes = fiSpells(name).map(s => {
     const idx = roll.map((p, i) => FI_SEASON_START[p.s] && p.week >= fiWeekOf(p.s, s.from) && p.week <= fiWeekOf(p.s, s.to) ? i : -1).filter(i => i >= 0);
-    return idx.length ? fiInjBox(xsC, ysC, idx[0], idx[idx.length - 1], s, [T, H - B]) : "";
+    return idx.length ? fiInjBox(xsC, ysC, idx[0], idx[idx.length - 1], s, 14, 14) : "";
   }).join("");
   const hov = roll.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.roll).toFixed(1)}" r="3.2" fill="transparent"><title>${p.s} week ${p.week}: 4-week average ${p.roll} mins${p.wc ? " (World Cup 2026, spread evenly)" : ""}${p.fb ? " (FBref +4%)" : ""}</title></circle>`).join("");
   return `<div class="fi-career"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Career 4-week rolling minutes for ${esc(name)}">
@@ -964,7 +973,7 @@ function renderFiPlayer(name){
     ["Vs optimal", fiNum(m.vs_optimal)], ["Risk factor", riskBadge(m.risk_factor)]];
   return `<div class="fi-tiles">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
     <div class="fi-row"><div id="fiChartBox">${fiChart(name)}</div>${fiDonut(p.apps || {})}</div>
-    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; red bands = injuries &middot; italic club = FBref +4% &middot; dashed line = career weekly average</span></div>${fiCareer(name)}${fiCareerTable(name)}</div>
+    <div style="margin-top:16px"><div class="fi-injhd"><span>Career load</span><span class="sub">4-week rolling average of weekly minutes, every season on record &middot; dashed red boxes = injuries &middot; italic club = FBref +4% &middot; dashed line = career weekly average</span></div>${fiCareer(name)}${fiCareerTable(name)}</div>
     <div style="margin-top:18px">${fiPublished(name)}</div>
     <div style="margin-top:16px">${fiInjuries(name)}</div>
     <div style="margin-top:16px"><div class="sub" style="color:var(--ink-faint);font-size:11.5px">Season minutes, all competitions (dashed = 2026&ndash;27 projection)</div>${fiSeasons(p.season_totals)}</div>`;
@@ -975,9 +984,9 @@ function renderFatigueTab(){
   if (!players.length) return `<div class="empty">No Fatigue Index data yet.</div>`;
   if (!fiPlayer || !players.includes(fiPlayer)) fiPlayer = players.includes("VVD") ? "VVD" : players[0];
   return `<div class="stack">
-    <div class="card"><div class="hd"><h2 id="fiName">${esc(fiPlayer)}</h2><span class="sub">Fatigue Index &middot; 2026&ndash;27</span></div>
+    <div class="card"><div class="hd"><h2 id="fiName">${pname(fiPlayer)}</h2><span class="sub">Fatigue Index &middot; 2026&ndash;27</span></div>
       <div class="bd" id="fiPlayer">${renderFiPlayer(fiPlayer)}</div></div>
-    <div class="card"><div class="hd"><h2>Squad load</h2><span class="sub">tap a player &middot; tap a column to sort</span></div>
+    <div class="card"><div class="hd"><h2>Squad load</h2><span class="sub">tap a player &middot; tap a column to sort &middot; <span class="inj-name" style="cursor:default">Red name</span> = currently injured</span></div>
       <div class="bd" id="fiTable">${renderFiTable()}</div></div>
   </div>`;
 }
@@ -991,7 +1000,7 @@ function wireFatigue(){
   wireSeasons();
   document.querySelectorAll("tr[data-fiplayer]").forEach(el => {
     const pick = () => { fiPlayer = el.dataset.fiplayer;
-      document.getElementById("fiName").textContent = fiPlayer;
+      document.getElementById("fiName").innerHTML = pname(fiPlayer);
       document.getElementById("fiPlayer").innerHTML = renderFiPlayer(fiPlayer);
       document.getElementById("fiTable").innerHTML = renderFiTable(); wireFatigue();
       document.getElementById("fiName").scrollIntoView({ behavior:"smooth", block:"center" }); };
