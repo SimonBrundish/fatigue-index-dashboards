@@ -840,7 +840,7 @@ function fiChart(name){
     <path d="${path(cur)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>${dots}${boxes}
     ${avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"/><text class="avglab" x="${W-R+6}" y="${y(avg)+3}">Avg ${avg}</text>` : ""}
   </svg>
-  <div class="fi-legend">${chips}<span style="color:var(--ink-faint)">tap a season to hide/show (dashed chip = FBref, not Simon&rsquo;s sheet) &middot; red dashed boxes = injuries (${FI_CUR}; hide all but one past season to see its injuries) &middot; dashed line = ${FI_CUR} season average &middot; 4-week rolling average of minutes per week, all competitions incl. internationals, by week of season</span></div></div>`;
+  <div class="fi-legend">${chips}<span style="color:var(--ink-faint)">tap a season to hide/show (dashed chip = FBref +4%, not Simon&rsquo;s sheet) &middot; red dashed boxes = injuries (${FI_CUR}; hide all but one past season to see its injuries) &middot; dashed line = ${FI_CUR} season average &middot; 4-week rolling average of minutes per week, all competitions incl. internationals, by week of season</span></div></div>`;
 }
 
 // "Leverkusen · FBref" under a season band; Liverpool seasons from Simon's sheet need no tag
@@ -848,7 +848,8 @@ function fiSeasonTag(m, s){
   if (!m) return s === FI_CUR ? "Liverpool" : "";
   const clubs = (m.clubs || []).filter(c => c !== "Liverpool");
   const club = (m.clubs || []).length > 1 ? m.clubs.join(" / ") : (m.clubs || [])[0] || "";
-  if (m.source === "fbref") return `${club.length > 22 ? club.slice(0, 21) + "\u2026" : club} \u00b7 FBref`;
+  if (m.source === "fbref") return `${club.length > 20 ? club.slice(0, 19) + "\u2026" : club} \u00b7 FBref +4%`;
+  if (m.source === "sheet+fbref") return `${m.pre_club} \u2192 Liverpool`;
   return clubs.length ? club : "Liverpool";
 }
 function fiCareerTable(name){
@@ -861,16 +862,17 @@ function fiCareerTable(name){
       <td class="num">${r.apps}</td><td class="num">${r.starts}</td><td class="num">${r.mins.toLocaleString("en-GB")}</td>
       <td class="num">${r.pct_available != null ? r.pct_available + "%" : "&ndash;"}</td>
       <td class="num"${r.injury_days ? ` style="color:${FI_BAND.red}"` : ""}>${r.injury_days || "&ndash;"}</td>
-      <td style="text-align:left;color:var(--ink-faint)">${r.season === FI_CUR ? "UP sheet" : r.source === "sheet" ? "Simon's sheet" : "FBref"}</td></tr>`).join("")}</tbody></table></div>
-    <div class="empty" style="padding:6px 0 0;text-align:left;font-size:11px">Apps, starts and minutes from FBref match logs (all competitions incl. internationals; FBref counts 90 a game, no stoppage time). Weekly lines use Simon's sheet where he has the season, FBref otherwise.</div>`;
+      <td style="text-align:left;color:var(--ink-faint)">${r.season === FI_CUR ? "UP sheet" : r.source === "sheet" ? "Simon's sheet"
+        : r.source === "sheet+fbref" ? "Simon's sheet; pre-joining weeks FBref +4%" : "FBref +4%"}</td></tr>`).join("")}</tbody></table></div>
+    <div class="empty" style="padding:6px 0 0;text-align:left;font-size:11px">Apps, starts and % available from FBref match logs (all competitions incl. internationals). Minutes are on Simon's actual-minutes basis: his sheet where he has the season, otherwise FBref +4% (FBref counts 90 a game). % available uses raw FBref minutes over his clubs' fixtures &times; 90.</div>`;
 }
 // one continuous 4-week rolling line across every season he has weekly data for, then 26/27
 function fiCareer(name){
   const hist = (DATA.weekly_history || {})[name] || {};
   const seasons = Object.keys(hist).sort().filter(s => (hist[s] || []).some(p => (p.mins || 0) > 0));
   if (!seasons.length) return `<div class="empty" style="padding:10px 0;text-align:left">No historic weekly data.</div>`;
-  const stream = [];
-  seasons.forEach(s => hist[s].forEach(p => stream.push({ s, week:p.week, mins:p.mins, wc:p.wc })));
+  const stream = [], cmeta0 = (DATA.career_meta || {})[name] || {};
+  seasons.forEach(s => hist[s].forEach(p => stream.push({ s, week:p.week, mins:p.mins, wc:p.wc, fb:p.fb || ((cmeta0[s] || {}).source === "fbref") })));
   ((DATA.fatigue_index[name] || {}).weekly || []).forEach(p => stream.push({ s:FI_CUR, week:p.week, mins:p.mins }));
   const roll = rolling4(stream).map((r, i) => ({ ...stream[i], roll:r.mins }));
   const n = roll.length, raw = stream.filter(p => p.mins != null);
@@ -899,7 +901,7 @@ function fiCareer(name){
     const idx = roll.map((p, i) => FI_SEASON_START[p.s] && p.week >= fiWeekOf(p.s, s.from) && p.week <= fiWeekOf(p.s, s.to) ? i : -1).filter(i => i >= 0);
     return idx.length ? fiInjBox(xsC, ysC, idx[0], idx[idx.length - 1], s) : "";
   }).join("");
-  const hov = roll.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.roll).toFixed(1)}" r="3.2" fill="transparent"><title>${p.s} week ${p.week}: 4-week average ${p.roll} mins${p.wc ? " (World Cup 2026, spread evenly)" : ""}</title></circle>`).join("");
+  const hov = roll.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.roll).toFixed(1)}" r="3.2" fill="transparent"><title>${p.s} week ${p.week}: 4-week average ${p.roll} mins${p.wc ? " (World Cup 2026, spread evenly)" : ""}${p.fb ? " (FBref +4%)" : ""}</title></circle>`).join("");
   return `<div class="fi-career"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Career 4-week rolling minutes for ${esc(name)}">
     ${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
     <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>${cboxes}${hov}
