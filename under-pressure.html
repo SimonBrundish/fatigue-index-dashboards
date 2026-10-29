@@ -256,7 +256,16 @@ tr.fi-pick{cursor:pointer}
 .hm-key .k{display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--accent);margin-right:2px;vertical-align:-1px}
 .hm-key .k.inj{background:var(--surface-2);box-shadow:0 0 0 1.5px #f8737f inset}.hm-key .k.out{background:var(--surface-3);opacity:.45}
 .inj-name{color:#f8737f;font-weight:600;cursor:help}
-</style>
+/* ivory panel for the squad availability heatmap: scoped token overrides so cells read clearly */
+.card.ivory{--surface:#fbf7ec;--surface-2:#efe8d4;--surface-3:#e2dac2;--ink:#18261c;--ink-soft:#435347;--ink-faint:#6e7a70;
+  --line:#e0d7bd;--line-strong:#cfc4a4;--accent:#b8860b;--hm-fill:#14532d;--hm-red:#d23a47;
+  background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.25),0 12px 30px -16px rgba(0,0,0,.6)}
+.card.ivory .hd h2{color:var(--ink)}
+.card.ivory .hm i,.card.ivory .hm-key .k{background:var(--hm-fill)}
+.card.ivory .hm.inj{box-shadow:0 0 0 1.5px var(--hm-red) inset}
+.card.ivory .hm-key .k.inj{background:var(--surface-2);box-shadow:0 0 0 1.5px var(--hm-red) inset}
+.card.ivory .hm-key .k.out,.card.ivory .hm.out{background:var(--surface-3);opacity:.6}
+.card.ivory .hm-n.hi,.card.ivory .inj-name{color:var(--hm-red)}</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -448,7 +457,7 @@ function renderMatchStrip(matches, tab){
       <div class="comp">${esc(m.competition)} &middot; ${esc(m.venue==='H'?'Home':m.venue==='A'?'Away':'Neutral')}</div>
       <div class="opp">${esc(m.opponent)}</div>
       <div class="score"><span class="r ${m.result}">${m.result}</span><span class="gd mono">${m.score_for}&ndash;${m.score_against}</span></div>
-      <div class="date">${fmtDate(m.date)}</div>
+      <div class="date">${fmtDate(m.date)}${m.note ? ` &middot; ${esc(m.note)}` : ""}</div>
     </div>`).join("")}</div>`;
 }
 
@@ -1154,7 +1163,7 @@ function renderFatigueTab(){
   if (!players.length) return `<div class="empty">No Fatigue Index data yet.</div>`;
   if (!fiPlayer || !players.includes(fiPlayer)) fiPlayer = players.includes("VVD") ? "VVD" : players[0];
   return `<div class="stack">
-    <div class="card"><div class="hd"><h2>Squad availability</h2><span class="sub">last 10 weeks of 2025&ndash;26 and every 2026&ndash;27 week &middot; tap a cell for detail</span></div>
+    <div class="card ivory"><div class="hd"><h2>Squad availability</h2><span class="sub">last 10 weeks of 2025&ndash;26 and every 2026&ndash;27 week &middot; tap a cell for detail</span></div>
       <div class="bd">${fiAvail()}</div></div>
     <div class="card"><div class="hd"><h2 id="fiName">${pname(fiPlayer)}</h2><span class="sub">Fatigue Index &middot; 2026&ndash;27</span></div>
       <div class="bd" id="fiPlayer">${renderFiPlayer(fiPlayer)}</div></div>
