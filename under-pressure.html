@@ -758,7 +758,7 @@ function fiPublished(name){
       <span class="bar"><i style="width:${Math.max(1, c.score)}%;background:${fiScoreCol(c.score)}"></i></span>
       <span class="mono s">${Math.round(c.score)}</span><span class="mono p">${(c.points||0).toFixed(1)}</span></div>`).join("");
   const nudge = j.resp_nudge ? `<div class="fi-comp"><span class="l">Fatigue response nudge<small>declining speed / sprint / HI share</small></span><span></span><span></span><span class="mono p">+${j.resp_nudge.toFixed(1)}</span></div>` : "";
-  return `<div class="fi-injhd"><span>Fatigue Index (published)</span><span class="sub">score ${j.fi_index != null ? `<b style="color:${FI_BAND[j.fi_band]}">${j.fi_index} ${esc(j.fi_band)}</b>` : "not ranked this week"} &middot; as of ${fiDate(j.as_of)} &middot; red &gt; 65, amber 40&ndash;65, green &lt; 40</span></div>
+  return `<div class="fi-injhd"><span>Fatigue Index (published)</span><span class="sub">score ${j.fi_index != null ? `<b style="color:${FI_BAND[j.fi_band]}">${j.fi_index} ${esc(j.fi_band)}</b>` : "not ranked this week"} &middot; as of ${fiDate(j.scored_as_of || j.as_of)}${j.next_fixture ? `, the day before ${j.next_venue === "H" ? `Liverpool v ${esc(j.next_opp)}` : `${esc(j.next_opp)} v Liverpool`} (${fiDate(j.next_fixture)})` : ""} &middot; red &gt; 65, amber 40&ndash;65, green &lt; 40</span></div>
     <div class="fi-pub">
       <div><div class="fi-comp h"><span class="l">Component</span><span></span><span class="s">Score</span><span class="p">Points</span></div>${rows}${nudge}
         ${j.fi_index != null ? `<div class="fi-comp t"><span class="l">Fatigue Index</span><span></span><span></span><span class="mono p">${j.fi_index}</span></div>` : ""}</div>
