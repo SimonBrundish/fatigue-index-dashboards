@@ -180,7 +180,7 @@ footer{max-width:1280px;margin:0 auto;padding:10px 20px 50px;font-size:11px;colo
 
 <footer>
   <span id="foot"></span><br>
-  Shot data: Understat (via understat_bulk_scraper), all shots 2023/24–2026/27. HQC = shot xG &gt; 0.27.
+  Shot data: Understat (via understat_bulk_scraper), all shots 2023/24–2026/27, with FotMob standing in for any league game Understat doesn't have yet. HQC = shot xG &gt; 0.27.
   Conversion = goals ÷ shots. Own goals excluded from all shot/goal counts. Penalties (xG ≈ 0.76) are HQCs;
   "non-pen" columns strip them out. "G−xG" on HQC = HQC goals minus summed HQC xG (finishing over/under-performance).
   Players → Creating: a "chance created" = a shot this player assisted (the pass before it); xA = summed xG of those; "HQC %made" = the share that were high-quality.
@@ -610,7 +610,7 @@ function render(){
     renderLiverpool(); return;
   }
   $("#subline").textContent = `Premier League · xG > ${DASH.threshold} · ${DASH.season_labels[state.season]}`;
-  $("#foot").textContent = `Generated ${DASH.generated} · ${scope().league.matches} matches in this scope · threshold xG > ${DASH.threshold}`;
+  $("#foot").textContent = `Generated ${DASH.generated} · ${scope().league.matches} matches in this scope · threshold xG > ${DASH.threshold}${(DASH.fotmob_games||[]).length ? ` · FotMob xG, not Understat, for ${DASH.fotmob_games.join(", ")}` : ""}`;
   renderKPIs();
   const L = scope().league;
   $("#note").innerHTML = `<b>${fmt(L.hqc_share,1)}%</b> of shots are high-quality chances (xG &gt; 0.27) yet they produce <b>${fmt(L.pct_goals_hqc,1)}%</b> of all goals. HQCs convert at <b>${fmt(L.hqc_cr,1)}%</b> vs <b>${fmt(L.nhqc_cr,1)}%</b> for every other shot — a <b>${sign(L.cr_gap,1)}-point</b> gap.`;
@@ -653,7 +653,7 @@ function renderLiverpool(){
   ];
   $("#kpis").innerHTML = tiles.map(([lab,val,sub,hero])=>
     `<div class="kpi${hero?" hero":""}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`).join("");
-  $("#note").innerHTML = `Every shot in Liverpool's ${n} game${n===1?"":"s"} this season, for and against. <b>League games</b> use Understat xG (the same model as the rest of this dashboard) and Understat's assister as the creator. <b>Champions League and Carabao Cup games</b> use Opta xG from Dr Barts' match dashboards; creators there are only known for goals (FBref). xGOT is Opta's, from Barts, for every shot; it is 0 for shots off target or blocked.`;
+  $("#note").innerHTML = `Every shot in Liverpool's ${n} game${n===1?"":"s"} this season, for and against. <b>League games</b> use Understat xG (the same model as the rest of this dashboard) and Understat's assister as the creator${LFC.games.some(g=>g.shots.some(s=>s.src==="FotMob")) ? `, except ${LFC.games.filter(g=>g.shots.some(s=>s.src==="FotMob")).map(g=>g.opp).join(", ")}, which uses FotMob xG until Understat has it (creators for goals only)` : ""}. <b>Champions League and Carabao Cup games</b> use Opta xG from Dr Barts' match dashboards; creators there are only known for goals (FBref). xGOT is Opta's, from Barts, for every shot; it is 0 for shots off target or blocked.`;
 
   const compBtns = [["all","All"],["PL","League"],["UCL","Champions League"],["EFLC","Carabao Cup"]]
     .map(([k,l])=>`<button data-comp="${k}" aria-pressed="${lstate.comp===k}">${l}</button>`).join("");
