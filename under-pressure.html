@@ -471,17 +471,28 @@ function renderMatchStrip(matches, tab){
 }
 
 let matchSort = { col: "Mins", dir: -1 };
+// Fatigue Index going into a match: the published pre-match point (scored the day before) for that game
+const FI_PRE = "FI going in";
+const FI_PRE_NOTE = "Fatigue Index scored the day before this match. It stays fixed after the Fatigue Index tab moves on.";
+function fiPreMatch(player, date){
+  const h = ((DATA.fi_published || {})[player] || {}).history || [];
+  return h.find(x => x.before === date && typeof x.index === "number") || null;
+}
 function renderMatchDetail(matches, records){
   const m = matches.find(x => x.tab === selectedMatch);
   if (!m) return `<div class="empty">Select a match above.</div>`;
+  const fiPre = {};
+  records.filter(r => r.match === m.tab).forEach(r => { fiPre[r.player] = fiPreMatch(r.player, m.date); });
+  const val = (r, c) => c === FI_PRE ? (fiPre[r.player] ? fiPre[r.player].index : undefined) : r.stats[c];
   const recs = records.filter(r => r.match === m.tab).sort((a,b) => {
-    const av = a.stats[matchSort.col] ?? -Infinity, bv = b.stats[matchSort.col] ?? -Infinity;
+    const av = val(a, matchSort.col) ?? -Infinity, bv = val(b, matchSort.col) ?? -Infinity;
     return matchSort.dir === -1 ? (bv - av) : (av - bv);
   });
 
   const present = new Set();
   recs.forEach(r => Object.keys(r.stats).forEach(k => present.add(k)));
-  if (!present.has(matchSort.col)) matchSort.col = "Mins";
+  const hasFi = Object.values(fiPre).some(Boolean);
+  if (!present.has(matchSort.col) && !(hasFi && matchSort.col === FI_PRE)) matchSort.col = "Mins";
   const groups = METRIC_GROUPS
     .map(([name, cols]) => [name, cols.filter(c => present.has(c))])
     .filter(([,cols]) => cols.length);
@@ -489,12 +500,17 @@ function renderMatchDetail(matches, records){
   const grouped = new Set(groups.flatMap(([,cols]) => cols));
   const leftover = [...present].filter(c => !grouped.has(c));
   if (leftover.length) groups.push(["Other", leftover]);
+  if (hasFi) groups.unshift(["Fatigue Index", [FI_PRE]]);
 
   const groupRow = `<tr><th rowspan="2" class="playercol">Player</th>` + groups.map(([name, cols]) => `<th colspan="${cols.length}" class="grouphead">${esc(name)}</th>`).join("") + `</tr>`;
-  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " \u2014 " + XT100_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
+  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " \u2014 " + XT100_NOTE : c === FI_PRE ? " \u2014 " + FI_PRE_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
   const head = groupRow + colRow;
   const allCols = groups.flatMap(([,cols]) => cols);
   let body = recs.map(r => `<tr><td>${pname(r.player)}</td>` + allCols.map(c => {
+    if (c === FI_PRE){
+      const f = fiPre[r.player];
+      return `<td class="num${matchSort.col===c?' active':''}"${f ? ` style="color:${FI_BAND[f.band] || "inherit"};font-weight:600"` : ""}>${f ? f.index.toFixed(1) : "&ndash;"}</td>`;
+    }
     const v = r.stats[c];
     return `<td class="num${matchSort.col===c?' active':''}">${v===undefined? "&ndash;" : v}</td>`;
   }).join("") + `</tr>`).join("");
