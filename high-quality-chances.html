@@ -180,7 +180,7 @@ footer{max-width:1280px;margin:0 auto;padding:10px 20px 50px;font-size:11px;colo
 
 <footer>
   <span id="foot"></span><br>
-  Shot data: Understat (via understat_bulk_scraper), all shots 2023/24–2026/27, with FotMob standing in for any league game Understat doesn't have yet. HQC = shot xG &gt; 0.27.
+  Shot data: Understat (via understat_bulk_scraper), all shots 2023/24–2026/27, with FotMob standing in for any league game Understat doesn't have yet. HQC = shot xG &gt; 0.27 on Understat, &gt; 0.18 on FotMob, which gives the same count. Cups and Europe are FotMob, kept apart from the league tables.
   Conversion = goals ÷ shots. Own goals excluded from all shot/goal counts. Penalties (xG ≈ 0.76) are HQCs;
   "non-pen" columns strip them out. "G−xG" on HQC = HQC goals minus summed HQC xG (finishing over/under-performance).
   Players → Creating: a "chance created" = a shot this player assisted (the pass before it); xA = summed xG of those; "HQC %made" = the share that were high-quality.
@@ -605,12 +605,14 @@ function renderCreators(){
 /* ================= render ================= */
 function render(){
   if(state.view==="lfc"){
-    $("#subline").textContent = `Liverpool · all competitions · xG > ${DASH.threshold} · 2026/27`;
-    $("#foot").textContent = `Liverpool shots: Understat (league) and Dr Barts / Opta (all games, xGOT) · ${LFC.games.length} games`;
+    $("#subline").textContent = `Liverpool · all competitions · xG > ${DASH.threshold} (FotMob games ${DASH.threshold_fotmob}) · 2026/27`;
+    $("#foot").textContent = `Liverpool shots: Understat (league) and FotMob (cups, Europe, any league game Understat lacks) · ${LFC.games.length} games`;
     renderLiverpool(); return;
   }
-  $("#subline").textContent = `Premier League · xG > ${DASH.threshold} · ${DASH.season_labels[state.season]}`;
-  $("#foot").textContent = `Generated ${DASH.generated} · ${scope().league.matches} matches in this scope · threshold xG > ${DASH.threshold}${(DASH.fotmob_games||[]).length ? ` · FotMob xG, not Understat, for ${DASH.fotmob_games.join(", ")}` : ""}`;
+  const isCup = (DASH.cup_scopes||[]).includes(state.season);
+  $("#subline").textContent = isCup ? `English clubs · FotMob xG > ${DASH.threshold_fotmob} · ${DASH.season_labels[state.season]}`
+    : `Premier League · xG > ${DASH.threshold} · ${DASH.season_labels[state.season]}`;
+  $("#foot").textContent = `Generated ${DASH.generated} · ${scope().league.matches} matches in this scope · ${isCup ? `FotMob xG, HQC line ${DASH.threshold_fotmob} (the FotMob equivalent of Understat ${DASH.threshold}); creators known for goals only; not included in the league tables` : `threshold xG > ${DASH.threshold}${(DASH.fotmob_games||[]).length ? ` · FotMob xG with its equivalent line of ${DASH.threshold_fotmob}, not Understat, for ${DASH.fotmob_games.join(", ")}` : ""}`}`;
   renderKPIs();
   const L = scope().league;
   $("#note").innerHTML = `<b>${fmt(L.hqc_share,1)}%</b> of shots are high-quality chances (xG &gt; 0.27) yet they produce <b>${fmt(L.pct_goals_hqc,1)}%</b> of all goals. HQCs convert at <b>${fmt(L.hqc_cr,1)}%</b> vs <b>${fmt(L.nhqc_cr,1)}%</b> for every other shot — a <b>${sign(L.cr_gap,1)}-point</b> gap.`;
@@ -622,7 +624,7 @@ const LFC = JSON.parse(document.getElementById("lfcdata").textContent);
 const COMP_LABEL = {PL:"Premier League", UCL:"Champions League", EFLC:"Carabao Cup"};
 const lstate = { comp:"all", side:"for", mode:"games",
   sort:{ games:{key:"date",dir:1}, log:{key:"xg",dir:-1}, fin:{key:"hqc",dir:-1}, cre:{key:"hqc_c",dir:-1}, pairs:{key:"hqc",dir:-1} } };
-const isHQC = s => s.xg > DASH.threshold;
+const isHQC = s => s.xg > (s.src==="FotMob" ? DASH.threshold_fotmob : DASH.threshold);
 const onT = s => s.out==="goal" || s.out==="saved";
 function lfcGames(){ return LFC.games.filter(g => lstate.comp==="all" || g.comp===lstate.comp); }
 function lfcShots(){ return lfcGames().flatMap(g => g.shots.map(s => ({...s, date:g.date, comp:g.comp, opp:g.opp}))); }
@@ -653,7 +655,7 @@ function renderLiverpool(){
   ];
   $("#kpis").innerHTML = tiles.map(([lab,val,sub,hero])=>
     `<div class="kpi${hero?" hero":""}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`).join("");
-  $("#note").innerHTML = `Every shot in Liverpool's ${n} game${n===1?"":"s"} this season, for and against. <b>League games</b> use Understat xG (the same model as the rest of this dashboard) and Understat's assister as the creator${LFC.games.some(g=>g.shots.some(s=>s.src==="FotMob")) ? `, except ${LFC.games.filter(g=>g.shots.some(s=>s.src==="FotMob")).map(g=>g.opp).join(", ")}, which uses FotMob xG until Understat has it (creators for goals only)` : ""}. <b>Champions League and Carabao Cup games</b> use Opta xG from Dr Barts' match dashboards; creators there are only known for goals (FBref). xGOT is Opta's, from Barts, for every shot; it is 0 for shots off target or blocked.`;
+  $("#note").innerHTML = `Every shot in Liverpool's ${n} game${n===1?"":"s"} this season, for and against. <b>League games</b> use Understat xG (the same model as the rest of this dashboard) and Understat's assister as the creator${LFC.games.some(g=>g.comp==="PL"&&g.shots.some(s=>s.src==="FotMob")) ? `, except ${LFC.games.filter(g=>g.comp==="PL"&&g.shots.some(s=>s.src==="FotMob")).map(g=>g.opp).join(", ")}, which uses FotMob xG until Understat has it` : ""}. <b>Champions League and Carabao Cup games</b> use FotMob xG. On FotMob xG the HQC line is ${DASH.threshold_fotmob}, which gives the same HQC count as ${DASH.threshold} on Understat; creators there are only known for goals. xGOT is Opta's, from Barts or FotMob; it is 0 for shots off target or blocked.`;
 
   const compBtns = [["all","All"],["PL","League"],["UCL","Champions League"],["EFLC","Carabao Cup"]]
     .map(([k,l])=>`<button data-comp="${k}" aria-pressed="${lstate.comp===k}">${l}</button>`).join("");
