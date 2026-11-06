@@ -311,15 +311,22 @@ const FRIENDLY = {
 };
 function label(key){ return FRIENDLY[key] || key; }
 
-// xT added per 100 touches (computed in pipeline.py from Dr Barts' per-match EPV)
-const XT100 = "xT added per 100 touches";
-const XT100_NOTE = "EPV created minus EPV received, per 100 touches. Higher means more value added per touch.";
+// xT per 100 touches and EPV added (both computed in pipeline.py from Dr Barts' per-match data)
+const XT100 = "xT per 100 touches";
+const XT100_NOTE = "Dr Barts' XT divided by touches, times 100. Higher means more threat added per touch.";
+const EPV_ADDED = "EPV added", EPV_ADDED_P90 = "EPV added p90";
+const METRIC_NOTES = {
+  [XT100]: XT100_NOTE,
+  [EPV_ADDED]: "EPV created minus EPV received in the match. Higher means more value added.",
+  [EPV_ADDED_P90]: "EPV created minus EPV received, per 90 minutes. Higher means more value added.",
+};
 function fmtVal(metric, v){
-  if (metric === XT100 && typeof v === "number") return (v > 0 ? "+" : v < 0 ? "&minus;" : "") + Math.abs(v).toFixed(2);
+  if ((metric === XT100 || metric === EPV_ADDED || metric === EPV_ADDED_P90) && typeof v === "number")
+    return (v > 0 ? "+" : v < 0 ? "&minus;" : "") + Math.abs(v).toFixed(2);
   return v;
 }
 function metricNote(metric){
-  return metric === XT100 ? `<div class="empty" style="padding:0 0 10px;text-align:left;font-size:11.5px">${XT100_NOTE}</div>` : "";
+  return METRIC_NOTES[metric] ? `<div class="empty" style="padding:0 0 10px;text-align:left;font-size:11.5px">${METRIC_NOTES[metric]}</div>` : "";
 }
 
 const HEADLINE_METRICS = [
@@ -327,7 +334,7 @@ const HEADLINE_METRICS = [
   "Top Speed","Distance (P90)","Sprints (P90)","Touches","Completed Passes","Progressive Carries","Prog"
 ];
 
-const QUICK_METRICS = ["Goals","Assists","Big Chances","SCA","xT added per 100 touches","Top Speed","Distance (P90)","Successful Dribbles","Touches"];
+const QUICK_METRICS = ["Goals","Assists","Big Chances","SCA","xT per 100 touches","EPV added","Top Speed","Distance (P90)","Successful Dribbles","Touches"];
 
 // Full column set for the match box-score table, grouped the way the pod's
 // own sheet groups them -- this is the whole tracked metric set, not a
@@ -340,8 +347,8 @@ const METRIC_GROUPS = [
   ["Defending & duels", ["Int + Rec","Duels+/-","Aerials +/-","% Touches won","Possessions lost","Ball Retention %","% possession won","Tackles","Interceptions","Blocks"]],
   ["Creating", ["SCA","GCA","Big Chances","Big Assist","Pen Wins","Hockey Assist","Touches inside box"]],
   ["Shooting & goals", ["Shots","SOT","off Target","Blocked","Big Chance Scored","Big Chance missed","Pens Scored","Pens Missed","Goals","Assists","Equaliser","Go Ahead"]],
-  ["Expected", ["XG shots","XG assist","XG2","XT","xT added per 100 touches","XGBuild Up","PC","PC90","XGB100","XGT100","XG (public)"]],
-  ["Off the ball: EPV", ["EPV Received","EPV Created","EPV Faced","EPV Lost %"]],
+  ["Expected", ["XG shots","XG assist","XG2","XT","xT per 100 touches","XGBuild Up","PC","PC90","XGB100","XGT100","XG (public)"]],
+  ["Off the ball: EPV", ["EPV Received","EPV Created","EPV added","EPV Faced","EPV Lost %"]],
   ["Off the ball: pressing", ["Total Presses","PAdj Presses","Successful Presses","Failed Presses","Counter Presses"]],
   ["Goalkeeping", ["Shots Faced","Saves","PSxG","Goals Conceded"]],
   ["Physical", ["Top Speed","Distance (Total)","Running m [BS]","Sprint m [BT]","Sprints [BU]","Distance (P90)","Running m [BW]","Sprint m [BX]","Sprints [BY]","%HS"]],
@@ -512,7 +519,7 @@ function renderMatchDetail(matches, records){
   if (hasFi) groups.unshift(["Fatigue Index", [FI_PRE]]);
 
   const groupRow = `<tr><th rowspan="2" class="playercol">Player</th>` + groups.map(([name, cols]) => `<th colspan="${cols.length}" class="grouphead">${esc(name)}</th>`).join("") + `</tr>`;
-  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${c === XT100 ? " \u2014 " + XT100_NOTE : c === FI_PRE ? " \u2014 " + FI_PRE_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
+  const colRow = `<tr>` + groups.flatMap(([,cols]) => cols.map(c => `<th class="num${matchSort.col===c?' active':''}" data-col="${esc(c)}" title="Sort by ${esc(label(c))}${METRIC_NOTES[c] ? " \u2014 " + METRIC_NOTES[c] : c === FI_PRE ? " \u2014 " + FI_PRE_NOTE : ""}">${esc(label(c))}</th>`)).join("") + `</tr>`;
   const head = groupRow + colRow;
   const allCols = groups.flatMap(([,cols]) => cols);
   let body = recs.map(r => `<tr><td>${pname(r.player)}</td>` + allCols.map(c => {
@@ -610,7 +617,7 @@ function renderSeasonRates(){
     // skip the sheet's squad "Total" row and anyone without minutes; when
     // ranking highest first, a 0 is no performance worth listing
     .filter(([player,p]) => !/^total$/i.test(player.trim()) && (p.Mins || 0) > 0
-      && validRate(srMetric, p[srMetric]) && !(srDir === -1 && p[srMetric] === 0 && srMetric !== XT100))
+      && validRate(srMetric, p[srMetric]) && !(srDir === -1 && p[srMetric] === 0 && srMetric !== XT100 && srMetric !== EPV_ADDED_P90))
     .map(([player,p]) => ({ player, value:p[srMetric], mins:p.Mins }))
     .sort((a,b) => srDir === -1 ? (b.value - a.value) : (a.value - b.value));
   // xT per 100 touches only ranks players with 100+ touches; the rest sit greyed below a divider
