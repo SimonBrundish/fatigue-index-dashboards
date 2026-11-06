@@ -404,7 +404,7 @@ const SUM_COLS = [
 function buildSquadSummary(records){
   const byPlayer = {};
   for (const r of records){
-    const p = byPlayer[r.player] || (byPlayer[r.player] = { player:r.player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, GBCC:0, _cmp:0, _att:0, _ratings:[], _epvNet:0, _epvTch:0 });
+    const p = byPlayer[r.player] || (byPlayer[r.player] = { player:r.player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, GBCC:0, _cmp:0, _att:0, _ratings:[], _xt:0, _xtTch:0, _epvNet:0, _epvMins:0 });
     p.Games += 1;
     // games with a goal or a big chance created: shows whether the output is spread or one big night
     if ((r.stats.Goals || 0) > 0 || (r.stats["Big Chances"] || 0) > 0) p.GBCC += 1;
@@ -415,27 +415,32 @@ function buildSquadSummary(records){
     if (typeof r.stats["Completed Passes"] === "number") p._cmp += r.stats["Completed Passes"];
     if (typeof r.stats["Attempts"] === "number") p._att += r.stats["Attempts"];
     if (typeof r.stats["Rating"] === "number") p._ratings.push(r.stats["Rating"]);
-    // xT per 100 touches only counts matches where both EPV figures and touches exist
-    const ec = r.stats["EPV Created"], er = r.stats["EPV Received"], t = r.stats["Touches"];
-    if (typeof ec === "number" && typeof er === "number" && typeof t === "number"){ p._epvNet += ec - er; p._epvTch += t; }
+    // xT per 100 touches: Barts' XT over touches, only matches that have both
+    const xt = r.stats["XT"], t = r.stats["Touches"], m = r.stats["Mins"];
+    if (typeof xt === "number" && typeof t === "number"){ p._xt += xt; p._xtTch += t; }
+    // EPV added p90: EPV created minus EPV received, per 90 of the minutes in those matches
+    const ec = r.stats["EPV Created"], er = r.stats["EPV Received"];
+    if (typeof ec === "number" && typeof er === "number" && typeof m === "number" && m > 0){ p._epvNet += ec - er; p._epvMins += m; }
   }
   return Object.values(byPlayer).map(p => ({
     ...p,
     PassPct: p._att ? Math.round((p._cmp / p._att) * 1000) / 10 : null,
-    XT100: p._epvTch >= 100 ? Math.round((p._epvNet / p._epvTch) * 10000) / 100 : null,
+    XT100: p._xtTch >= 100 ? Math.round((p._xt / p._xtTch) * 10000) / 100 : null,
+    EPV90: p._epvMins > 0 ? Math.round((p._epvNet / p._epvMins) * 9000) / 100 : null,
     MinGBCC: (p.Goals + p["Big Chances"]) > 0 ? Math.round(p.Mins / (p.Goals + p["Big Chances"])) : null,
   }));
 }
 
 let squadSort = { col: "Mins", dir: -1 };
 const SUM_TITLES = {
-  XT100: "xT added per 100 touches: EPV created minus EPV received, per 100 touches (needs 100+ touches). Higher is better.",
+  XT100: "xT per 100 touches: Dr Barts' XT divided by touches, times 100 (needs 100+ touches). Higher is better.",
+  EPV90: "EPV added per 90: EPV created minus EPV received, per 90 minutes. Higher is better.",
   MinGBCC: "Minutes per goal or big chance created. Lower is better.",
   GBCC: "Games with a goal or a big chance created, out of games played. Sorts by the count.",
 };
 function renderSquadSummary(records){
   const rows = buildSquadSummary(records);
-  const cols = [...SUM_COLS, ["PassPct","Pass %"], ["XT100","xT100"], ["MinGBCC","minGBCC"], ["GBCC","G/BCC games"]];
+  const cols = [...SUM_COLS, ["PassPct","Pass %"], ["XT100","xT100"], ["EPV90","EPV added p90"], ["MinGBCC","minGBCC"], ["GBCC","G/BCC games"]];
   const blank = squadSort.dir === -1 ? -Infinity : Infinity;  // players without a value always sort last
   rows.sort((a,b) => {
     const av = a[squadSort.col] ?? blank, bv = b[squadSort.col] ?? blank;
@@ -446,7 +451,7 @@ function renderSquadSummary(records){
   let body = rows.map(r => `<tr><td>${pname(r.player)}</td>` + cols.map(([k]) => {
     const v = r[k];
     if (k === "GBCC") return `<td class="num">${v}/${r.Games}</td>`;
-    return `<td class="num">${v===null||v===undefined ? "&ndash;" : (Number.isInteger(v)?v:v.toFixed( k==='XT100' ? 2 : k==='PassPct' ? 1 : 0))}</td>`;
+    return `<td class="num">${v===null||v===undefined ? "&ndash;" : (Number.isInteger(v)?v:v.toFixed( (k==='XT100' || k==='EPV90') ? 2 : k==='PassPct' ? 1 : 0))}</td>`;
   }).join("") + `</tr>`).join("");
   if (!rows.length) return `<div class="empty">No matches in this competition yet.</div>`;
   return `<div class="tablewrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
