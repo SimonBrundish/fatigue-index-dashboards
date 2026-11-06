@@ -404,8 +404,10 @@ const SUM_COLS = [
 function buildSquadSummary(records){
   const byPlayer = {};
   for (const r of records){
-    const p = byPlayer[r.player] || (byPlayer[r.player] = { player:r.player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, _cmp:0, _att:0, _ratings:[], _epvNet:0, _epvTch:0 });
+    const p = byPlayer[r.player] || (byPlayer[r.player] = { player:r.player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, GBCC:0, _cmp:0, _att:0, _ratings:[], _epvNet:0, _epvTch:0 });
     p.Games += 1;
+    // games with a goal or a big chance created: shows whether the output is spread or one big night
+    if ((r.stats.Goals || 0) > 0 || (r.stats["Big Chances"] || 0) > 0) p.GBCC += 1;
     for (const k of ["Mins","Goals","Assists","Shots","SOT","Big Chances","Touches"]){
       const v = r.stats[k];
       if (typeof v === "number") p[k] += v;
@@ -429,10 +431,11 @@ let squadSort = { col: "Mins", dir: -1 };
 const SUM_TITLES = {
   XT100: "xT added per 100 touches: EPV created minus EPV received, per 100 touches (needs 100+ touches). Higher is better.",
   MinGBCC: "Minutes per goal or big chance created. Lower is better.",
+  GBCC: "Games with a goal or a big chance created, out of games played. Sorts by the count.",
 };
 function renderSquadSummary(records){
   const rows = buildSquadSummary(records);
-  const cols = [...SUM_COLS, ["PassPct","Pass %"], ["XT100","xT100"], ["MinGBCC","minGBCC"]];
+  const cols = [...SUM_COLS, ["PassPct","Pass %"], ["XT100","xT100"], ["MinGBCC","minGBCC"], ["GBCC","G/BCC games"]];
   const blank = squadSort.dir === -1 ? -Infinity : Infinity;  // players without a value always sort last
   rows.sort((a,b) => {
     const av = a[squadSort.col] ?? blank, bv = b[squadSort.col] ?? blank;
@@ -442,6 +445,7 @@ function renderSquadSummary(records){
   let head = `<th class="playercol">Player</th>` + cols.map(([k,l]) => `<th class="num${squadSort.col===k?' active':''}" data-col="${k}"${SUM_TITLES[k] ? ` title="${esc(SUM_TITLES[k])}"` : ""}>${esc(l)}</th>`).join("");
   let body = rows.map(r => `<tr><td>${pname(r.player)}</td>` + cols.map(([k]) => {
     const v = r[k];
+    if (k === "GBCC") return `<td class="num">${v}/${r.Games}</td>`;
     return `<td class="num">${v===null||v===undefined ? "&ndash;" : (Number.isInteger(v)?v:v.toFixed( k==='XT100' ? 2 : k==='PassPct' ? 1 : 0))}</td>`;
   }).join("") + `</tr>`).join("");
   if (!rows.length) return `<div class="empty">No matches in this competition yet.</div>`;
