@@ -266,7 +266,8 @@ tr.fi-pick{cursor:pointer}
 .card.ivory .hm-key .k.inj{background:var(--surface-2);box-shadow:0 0 0 1.5px var(--hm-red) inset}
 .card.ivory .hm-key .k.out,.card.ivory .hm.out{background:var(--surface-3);opacity:.6}
 .card.ivory .hm-n.hi,.card.ivory .inj-name{color:var(--hm-red)}
-/* player names and the Injured label: dark ink set explicitly so no browser falls back to the page's light text */
+/* player names and the Injured label: dark ink set explicitly. The GitHub/Squarespace copy has no doctype, so it renders in quirks mode, where tables don't inherit colour from the card */
+.card.ivory table{color:var(--ink)}
 .card.ivory .hm-tab .hm-name{color:var(--ink);-webkit-text-fill-color:currentColor;opacity:1}
 .card.ivory .hm-tab .hm-name .inj-name{color:var(--hm-red);-webkit-text-fill-color:currentColor}</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
