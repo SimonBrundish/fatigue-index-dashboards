@@ -75,7 +75,9 @@ def build(series):
                 hi = r["m"] * sum(t["hi"] for t in prior) / mins
                 sp = r["m"] * sum(t["sp"] for t in prior) / mins
                 est = True
-            b = weeks.setdefault((s, wk), {"km": 0.0, "hsr": 0.0, "sp": 0.0, "games": 0, "est": 0})
+            b = weeks.setdefault((s, wk), {"km": 0.0, "hsr": 0.0, "sp": 0.0, "games": 0, "est": 0, "g": []})
+            # one entry per game for the hover: date, competition where the FI names one, estimated flag
+            b["g"].append([r["d"], r.get("c") or "", int(est)])
             b["km"] += km
             b["hsr"] += max(0.0, hi - sp)
             b["sp"] += sp
@@ -90,7 +92,7 @@ def build(series):
             for wk in range(1, last + 1):
                 b = weeks.get((s, wk))
                 per[s].append({"week": wk, "km": round(b["km"], 1), "hsr": round(b["hsr"]), "sp": round(b["sp"]),
-                               "games": b["games"], "est": b["est"]} if b else
+                               "games": b["games"], "est": b["est"], "g": b["g"]} if b else
                               {"week": wk, "km": 0, "hsr": 0, "sp": 0, "games": 0, "est": 0})
         out[name] = per
     return out

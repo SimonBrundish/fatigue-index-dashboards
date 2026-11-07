@@ -190,7 +190,7 @@ input[type="search"]::placeholder{color:var(--ink-faint)}
 @media (max-width:900px){.fi-run{grid-template-columns:1fr}}
 .fi-run .t{font-size:12px;font-weight:600;margin-bottom:2px}.fi-run .t span{font-weight:400;color:var(--ink-faint)}
 .fi-run svg{width:100%;height:auto;display:block}.fi-run svg text{font-size:10px;fill:var(--ink-faint)}
-.fi-run .ax{stroke:var(--line-strong);stroke-width:1}.fi-run .gl{stroke:var(--line);stroke-width:1}
+.fi-run .ax{stroke:var(--line-strong);stroke-width:1}.fi-run .avg{stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:4,3}.fi-run .gl{stroke:var(--line);stroke-width:1}
 .fi-donut{display:flex;flex-direction:column;align-items:center;gap:10px}
 .fi-donut svg{width:170px;height:170px}
 .fi-donut .c{fill:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600}
@@ -954,6 +954,10 @@ function fiChart(name){
 
 // weekly running load (distance, HSR 19.8-25.2 km/h, sprint >25.2 km/h) as 4-week rolling averages, 25/26 v 26/27
 const FI_RUN = [["km","Distance","km",1],["hsr","HSR","m",0],["sp","Sprint","m",0]];
+function fiRunGames(p){
+  const opp = {}; (DATA.matches_meta || []).forEach(m => { opp[m.date] = m.opponent; });
+  return (p.g || []).map(([d, c, e]) => `${fiDate(d)} ${opp[d] ? esc(opp[d]) : esc(c || "game")}${e ? " (est.)" : ""}`).join("\n");
+}
 function fiRunChart(name, key, label, unit, dp){
   const rw = (DATA.running_weekly || {})[name] || {};
   const seasons = ["25/26", FI_CUR].filter(s => (rw[s] || []).some(p => p.games));
@@ -962,8 +966,9 @@ function fiRunChart(name, key, label, unit, dp){
     return { s, cur: s === FI_CUR, col: s === FI_CUR ? "var(--accent)" : FI_SEASON_COL[s],
       pts: raw.map((p, i) => ({ ...p, v: raw.slice(Math.max(0, i - 3), i + 1).reduce((a,q) => a + q[key], 0) / Math.min(4, i + 1) })) };
   });
+  const cur = ser.find(sr => sr.cur);
   const maxWeek = Math.max(10, ...ser.map(x => x.pts.length));
-  const maxV = Math.max(key === "km" ? 10 : 100, ...ser.flatMap(x => x.pts.map(p => p.v)));
+  const maxV = Math.max(key === "km" ? 10 : 100, ...ser.flatMap(x => x.pts.map(p => p.v)), ...(cur ? cur.pts.map(p => p[key]) : []));
   const stepV = key === "km" ? (maxV > 25 ? 10 : 5) : maxV > 4000 ? 1000 : maxV > 1500 ? 500 : maxV > 600 ? 200 : 100;
   const yTop = Math.ceil(maxV / stepV) * stepV;
   const W = 320, H = 180, L = 40, R = 8, T = 8, B = 20;
@@ -974,12 +979,19 @@ function fiRunChart(name, key, label, unit, dp){
   for (let v = 0; v <= yTop; v += stepV) g += `<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-5}" y="${y(v)+3}" text-anchor="end">${v.toLocaleString("en-GB")}</text>`;
   const step = maxWeek > 30 ? 10 : maxWeek > 15 ? 5 : 2;
   for (let w = 1; w <= maxWeek; w += (w === 1 ? step - 1 : step)) g += `<text x="${x(w)}" y="${H-6}" text-anchor="middle">${w}</text>`;
+  // this season's weekly totals as faint bars; a week with an estimated game is dotted
+  const bw = Math.max(2, (W - L - R) / maxWeek * .62);
+  const bars = cur ? cur.pts.filter(p => p.games).map(p => `<rect x="${(x(p.week) - bw / 2).toFixed(1)}" y="${y(p[key]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(0) - y(p[key])).toFixed(1)}"
+    fill="var(--accent)" fill-opacity="${p.est ? .08 : .2}"${p.est ? ` stroke="var(--accent)" stroke-opacity=".6" stroke-width=".8" stroke-dasharray="2,2"` : ""}><title>${FI_CUR} week ${p.week}: ${fmt(p[key])} ${unit}\n${fiRunGames(p)}</title></rect>`).join("") : "";
   const lines = ser.map(sr => `<path d="${sr.pts.map((p,i) => `${i?"L":"M"}${x(p.week).toFixed(1)},${y(p.v).toFixed(1)}`).join("")}" fill="none" stroke="${sr.col}" stroke-width="${sr.cur ? 2.6 : 1.6}" opacity="${sr.cur ? 1 : .75}" stroke-linejoin="round"><title>${sr.s}</title></path>`).join("");
-  const dots = ser.filter(sr => sr.cur).flatMap(sr => sr.pts.map(p => `<circle cx="${x(p.week)}" cy="${y(p.v)}" r="2.6" fill="${p.est ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="1.2"><title>${sr.s} week ${p.week}: 4-week average ${fmt(p.v)} ${unit} (this week ${fmt(p[key])} ${unit}, ${p.games} game${p.games === 1 ? "" : "s"}${p.est ? `, ${p.est} estimated` : ""})</title></circle>`)).join("");
-  const last = (ser.find(sr => sr.cur) || {}).pts;
-  const now = last && last.length ? `${fmt(last[last.length - 1].v)} ${unit}` : "";
-  return `<div><div class="t">${label} <span>${unit} per week${now ? ` &middot; now ${now}` : ""}</span></div>
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="4-week rolling ${label} per week for ${esc(name)}">${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>${lines}${dots}</svg></div>`;
+  const dots = cur ? cur.pts.map(p => `<circle cx="${x(p.week)}" cy="${y(p.v)}" r="2.6" fill="${p.est ? "var(--surface)" : "var(--accent)"}" stroke="var(--accent)" stroke-width="1.2"><title>${FI_CUR} week ${p.week}: 4-week average ${fmt(p.v)} ${unit}\nthis week ${fmt(p[key])} ${unit}${p.games ? "\n" + fiRunGames(p) : ", no game"}</title></circle>`).join("") : "";
+  // season weekly average (weeks without a game count, as in the rolling line)
+  const avg = cur && cur.pts.length ? cur.pts.reduce((a,p) => a + p[key], 0) / cur.pts.length : null;
+  const avgLine = avg != null ? `<line class="avg" x1="${L}" x2="${W-R}" y1="${y(avg)}" y2="${y(avg)}"><title>${FI_CUR} weekly average ${fmt(avg)} ${unit}</title></line>` : "";
+  const boxes = cur ? fiInjBoxesWeekly(FI_CUR, cur.pts, p => x(p.week), p => y(p.v), fiSpells(name)) : "";
+  const now = cur && cur.pts.length ? cur.pts[cur.pts.length - 1].v : null;
+  return `<div><div class="t">${label} <span>${unit} per week${now != null ? ` &middot; now ${fmt(now)} v season ${fmt(avg)}` : ""}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly ${label} with 4-week rolling average for ${esc(name)}">${g}${bars}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>${lines}${avgLine}${dots}${boxes}</svg></div>`;
 }
 function fiRunning(name){
   const rw = (DATA.running_weekly || {})[name];
@@ -989,7 +1001,7 @@ function fiRunning(name){
     has(FI_CUR) ? `<button type="button" class="fi-sea" disabled><i style="background:var(--accent)"></i>${FI_CUR}</button>` : ""].join("");
   return `<div style="margin-top:16px"><div class="fi-injhd"><span>Running load</span><span class="sub">4-week rolling average of weekly totals, all competitions, by week of season</span></div>
     <div class="fi-run">${FI_RUN.map(([k,l,u,d]) => fiRunChart(name, k, l, u, d)).join("")}</div>
-    <div class="fi-legend">${keys}<span style="color:var(--ink-faint)">HSR = 19.8&ndash;25.2 km/h, sprint = above 25.2 km/h (same split as the match tabs) &middot; FotMob/Opta tracking, Simon&rsquo;s own Champions League distances &middot; hollow dot = week includes a game with no tracking (cups, internationals), estimated from his per-minute rate over his last 10 tracked games &middot; a week without a game counts as 0</span></div></div>`;
+    <div class="fi-legend">${keys}<span style="color:var(--ink-faint)">HSR = 19.8&ndash;25.2 km/h, sprint = above 25.2 km/h (same split as the match tabs) &middot; FotMob/Opta tracking, Simon&rsquo;s own Champions League distances &middot; bars = each week&rsquo;s total, line = 4-week rolling average, dashed line = ${FI_CUR} weekly average, red dashed boxes = injuries &middot; hollow dot / dotted bar = week includes a game with no tracking (cups, internationals), estimated from his per-minute rate over his last 10 tracked games &middot; a week without a game counts as 0</span></div></div>`;
 }
 
 // "Leverkusen · FBref" under a season band; Liverpool seasons from Simon's sheet need no tag
