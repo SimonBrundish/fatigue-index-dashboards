@@ -13,8 +13,13 @@ Definitions (same as Simon's UP sheet):
   distance = total km
   HSR      = metres at 19.8-25.2 km/h  (FI "hi" minus sprint metres)
   sprint   = metres above 25.2 km/h
-Matches with minutes but no tracking are estimated from the player's own
-per-minute rate over his last 10 tracked games (or his overall rate) and flagged.
+Matches with minutes but no tracking are estimated and flagged. The FI's own
+estimates (rows marked est) are ignored and redone here, because the FI scales a
+player's per-minute rate from however few tracked minutes he has: Nyoni's 1-minute
+cameo (0.3 km) became 27.5 km for a 94-minute PL2 game. Here the rate comes from his
+last 10 tracked games of 20+ minutes, shrunk towards the squad rate (outfield or
+goalkeeper) with 270 minutes' weight, so a player with little tracking gets a
+squad-like figure and a regular starter keeps his own.
 """
 import json, sys
 from datetime import date, timedelta
@@ -26,6 +31,26 @@ IDS = {"Alisson": "7a2e46a8", "Mamardashvilli": "d4b73232", "Frimpong": "74f2e74
        "Barcola": "a0d55a09", "Munoz": "f8b5680f", "Chiesa": "b0f7e36c", "Gakpo": "1971591f", "Wirtz": "e7fcf289",
        "Ekiike": "5b92d896", "Isak": "8e92be30", "Nyoni": "1d3b3d77", "Rio": "022eca88", "McConnell": "bf973eeb",
        "Koumas": "d77edba6", "Woodman": "19e50035", "Chambers": "7d6af698"}
+GK = {"Alisson", "Mamardashvilli", "Woodman"}
+PRIOR_MINS = 270   # weight of the squad rate, in minutes
+MIN_GAME = 20      # tracked games shorter than this don't set a player's rate
+
+
+def is_tracked(r):
+    return bool(r.get("km")) and r.get("hi") is not None and r.get("sp") is not None and not r.get("est")
+
+
+def squad_rates(series):
+    """pooled per-minute km/hi/sp over every tracked game of 60+ minutes, outfield and keepers apart"""
+    out = {}
+    for grp in (True, False):
+        rows = [r for n, f in IDS.items() if (n in GK) == grp for r in series.get(f, [])
+                if is_tracked(r) and (r.get("m") or 0) >= 60]
+        mins = sum(r["m"] for r in rows)
+        out[grp] = {k: sum(r[k] for r in rows) / mins for k in ("km", "hi", "sp")}
+    return out
+
+
 # week 1 = Monday of the week of Liverpool's first competitive game (matches FI_SEASON_START in under-pressure.html)
 SEASONS = [("25/26", date(2025, 8, 10)), ("26/27", date(2026, 8, 23))]
 
@@ -44,6 +69,7 @@ def season_of(d):
 
 def build(series):
     out = {}
+    rates = squad_rates(series)
     # every player's weeks run to the squad's last week, so weeks out (injury, rest) show as drops
     last_week = {}
     for fid in IDS.values():
@@ -56,7 +82,8 @@ def build(series):
         rows = sorted((r for r in series.get(fid, []) if (r.get("m") or 0) > 0), key=lambda r: r["d"])
         if not rows:
             continue
-        tracked = [r for r in rows if r.get("km") and r.get("hi") is not None and r.get("sp") is not None]
+        tracked = [r for r in rows if is_tracked(r) and r["m"] >= MIN_GAME]
+        sq = rates[name in GK]
         weeks = {}
         for r in rows:
             d = date.fromisoformat(r["d"])
@@ -65,15 +92,14 @@ def build(series):
                 continue
             s, w1 = so
             wk = (d - w1).days // 7 + 1
-            km, hi, sp, est = r.get("km"), r.get("hi"), r.get("sp"), bool(r.get("est"))
-            if not (km and hi is not None and sp is not None):
-                prior = [t for t in tracked if t["d"] < r["d"]][-10:] or tracked
-                if not prior:
-                    continue
+            est = False
+            if is_tracked(r):
+                km, hi, sp = r["km"], r["hi"], r["sp"]
+            else:
+                prior = [t for t in tracked if t["d"] < r["d"]][-10:] or tracked[:10]
                 mins = sum(t["m"] for t in prior)
-                km = r["m"] * sum(t["km"] for t in prior) / mins
-                hi = r["m"] * sum(t["hi"] for t in prior) / mins
-                sp = r["m"] * sum(t["sp"] for t in prior) / mins
+                rate = {k: (sum(t[k] for t in prior) + PRIOR_MINS * sq[k]) / (mins + PRIOR_MINS) for k in ("km", "hi", "sp")}
+                km, hi, sp = (r["m"] * rate[k] for k in ("km", "hi", "sp"))
                 est = True
             b = weeks.setdefault((s, wk), {"km": 0.0, "hsr": 0.0, "sp": 0.0, "games": 0, "est": 0, "g": []})
             # one entry per game for the hover: date, competition where the FI names one, estimated flag
