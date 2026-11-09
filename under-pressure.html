@@ -1101,6 +1101,22 @@ function fiSeasons(tot){
 
 // ---------- injury patterns (load before, return ramp, recurrence) and squad availability ----------
 // every week on record for a player, keyed by the Monday that starts it (same week mapping as the injury boxes)
+function fiSheetLast(){
+  if (fiSheetLast.v == null) fiSheetLast.v = Math.max(0, ...Object.values(DATA.fatigue_index || {}).map(p => ((p.weekly || []).slice(-1)[0] || {}).week || 0));
+  return fiSheetLast.v;
+}
+function fiMatchWeeks(name){
+  const last = fiSheetLast(), wk = {};
+  (DATA.match_records || []).forEach(r => {
+    if (r.player !== name || !r.date) return;
+    const w = fiWeekOf(FI_CUR, r.date), m = +((r.stats || {}).Mins) || 0;
+    if (w > last && m > 0) wk[w] = (wk[w] || 0) + m;
+  });
+  return Object.keys(wk).map(Number).sort((a, b) => a - b).map(w => ({ week:w, mins:Math.round(wk[w]) }));
+}
+function fiMatchLast(){
+  return Math.max(0, ...(DATA.match_records || []).filter(r => r.date).map(r => fiWeekOf(FI_CUR, r.date)));
+}
 function fiStream(name){
   const hist = Object.assign({}, (DATA.weekly_history || {})[name] || {});
   if (!hist["25/26"] && (DATA.weekly_2526 || {})[name]) hist["25/26"] = DATA.weekly_2526[name];
@@ -1112,6 +1128,9 @@ function fiStream(name){
       fb:p.fb || (cmeta[s] || {}).source === "fbref" }));
   });
   ((DATA.fatigue_index[name] || {}).weekly || []).forEach(p => out.push({ s:FI_CUR, week:p.week, t:fiWeek1(FI_CUR) + (p.week - 1) * 7 * DAY, mins:p.mins || 0 }));
+  // weeks after the last one in Simon's Fatigue Index sheet tab: minutes from the match tabs (his sheet), so the
+  // current season reaches the latest game; his FI tab replaces these as soon as he fills the week in
+  fiMatchWeeks(name).forEach(p => out.push({ s:FI_CUR, week:p.week, t:fiWeek1(FI_CUR) + (p.week - 1) * 7 * DAY, mins:p.mins, ms:true }));
   const byT = new Map(out.map(p => [p.t, p]));
   return { pts:out, byT, first: out.length ? out[0].t : null, last: out.length ? out[out.length - 1].t : null };
 }
@@ -1220,7 +1239,7 @@ function fiAvail(){
     .map(h => (h["25/26"] || []).length ? h["25/26"][h["25/26"].length - 1].week : 0);
   const prevLast = Math.max(0, ...prevAll);
   for (let w = Math.max(1, prevLast - 9); w <= prevLast; w++) cols.push({ s:"25/26", week:w });
-  const curLast = Math.max(0, ...players.map(n => ((DATA.fatigue_index[n].weekly || []).slice(-1)[0] || {}).week || 0));
+  const curLast = Math.max(fiSheetLast(), fiMatchLast());
   for (let w = 1; w <= curLast; w++) cols.push({ s:FI_CUR, week:w });
   cols.forEach(c => { c.t = fiWeek1(c.s) + (c.week - 1) * 7 * DAY; });
   const injCount = cols.map(() => 0);
@@ -1233,7 +1252,7 @@ function fiAvail(){
       if (s) injCount[ci]++;
       if (m) tot += m;
       const a = m ? Math.min(1, 0.18 + m / 200 * 0.82) : 0;
-      const tip = `${c.s} week ${c.week} (w/c ${fiDate(new Date(c.t).toISOString().slice(0, 10))}): ${m == null ? "no data" : m + " mins"}${p && p.wc ? " (World Cup, spread evenly)" : ""}${p && p.fb ? " (FBref +4%)" : ""}${s ? ". Injured: " + (s.injury || "injury") : ""}`;
+      const tip = `${c.s} week ${c.week} (w/c ${fiDate(new Date(c.t).toISOString().slice(0, 10))}): ${m == null ? "no data" : m + " mins"}${p && p.wc ? " (World Cup, spread evenly)" : ""}${p && p.fb ? " (FBref +4%)" : ""}${p && p.ms ? " (from the match tabs; not yet in your Fatigue Index tab)" : ""}${s ? ". Injured: " + (s.injury || "injury") : ""}`;
       return `<td class="hm${s ? " inj" : ""}${!m && !s ? " out" : ""}" title="${esc(tip)}">${m ? `<i style="opacity:${a.toFixed(2)}"></i>` : ""}</td>`;
     }).join("");
     return `<tr><th class="hm-name">${pname(n)}</th>${cells}<td class="num hm-tot">${Math.round(tot).toLocaleString("en-GB")}</td></tr>`;
