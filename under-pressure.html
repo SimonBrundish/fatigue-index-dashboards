@@ -417,7 +417,35 @@ const SUM_COLS = [
   ["Games","Games"],["Mins","Mins"],["Goals","Gls"],["Assists","Ast"],
   ["Shots","Sh"],["SOT","SoT"],["Big Chances","BC"],["Touches","Tch"]
 ];
-function buildSquadSummary(records){
+// Simon's own minutes from his Fatigue Index tab. Game numbers there follow the
+// match order by date; columns without a game number are internationals.
+function fiGameMap(){
+  if (!fiGameMap.v){
+    fiGameMap.v = {};
+    (DATA.matches_meta || []).slice().sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
+      .forEach((m,i) => { fiGameMap.v[i+1] = m.tab; });
+  }
+  return fiGameMap.v;
+}
+function fiMinsFor(name, scope, intl){
+  const p = (DATA.fatigue_index || {})[name];
+  if (!p || !(p.games || []).length) return null;
+  const map = fiGameMap(), covered = new Set();
+  let mins = 0, games = 0;
+  for (const g of p.games){
+    const m = +g.mins || 0;
+    if (g.intl){ if (intl && m > 0){ mins += m; games += 1; } continue; }
+    const tab = map[g.n];
+    if (!tab) continue;
+    covered.add(tab);
+    if (scope.has(tab) && m > 0){ mins += m; games += 1; }
+  }
+  return { mins, games, covered };
+}
+
+// records: club match records in scope; matches: the club matches in scope;
+// intl: true on the All Football tab (adds international minutes, goals and assists)
+function buildSquadSummaryRaw(records){
   const byPlayer = {};
   for (const r of records){
     const p = byPlayer[r.player] || (byPlayer[r.player] = { player:r.player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, GBCC:0, _cmp:0, _att:0, _ratings:[], _xt:0, _xtTch:0, _epvNet:0, _epvMins:0 });
@@ -446,6 +474,32 @@ function buildSquadSummary(records){
     MinGBCC: (p.Goals + p["Big Chances"]) > 0 ? Math.round(p.Mins / (p.Goals + p["Big Chances"])) : null,
   }));
 }
+function buildSquadSummaryFI(records, matches, intl){
+  const scope = new Set((matches || []).map(m => m.tab));
+  const blankRow = player => ({ player, Games:0, Mins:0, Goals:0, Assists:0, Shots:0, SOT:0, "Big Chances":0, Touches:0, GBCC:0, PassPct:null, XT100:null, EPV90:null, MinGBCC:null });
+  const rows = {};
+  buildSquadSummaryRaw(records).forEach(r => rows[r.player] = r);
+  const names = new Set([...Object.keys(rows), ...Object.keys(DATA.fatigue_index || {}), ...(intl ? Object.keys(DATA.internationals || {}) : [])]);
+  const out = [];
+  for (const name of names){
+    const r = rows[name] || blankRow(name);
+    const fi = fiMinsFor(name, scope, intl);
+    if (fi){
+      // games the Fatigue Index tab doesn't have yet still count from the match tabs
+      let mins = fi.mins, games = fi.games;
+      records.forEach(x => { if (x.player === name && !fi.covered.has(x.match) && (+x.stats.Mins || 0) > 0){ mins += +x.stats.Mins; games += 1; } });
+      r.Mins = mins; r.Games = games;
+    }
+    if (intl){
+      const i = (DATA.internationals || {})[name] || {};
+      r.Goals += i.Goals || 0; r.Assists += i.Assists || 0;
+      if (!fi && (i.Mins || 0) > 0){ r.Mins += i.Mins; }
+    }
+    r.MinGBCC = (r.Goals + r["Big Chances"]) > 0 ? Math.round(r.Mins / (r.Goals + r["Big Chances"])) : null;
+    if (r.Mins > 0 || rows[name]) out.push(r);
+  }
+  return out;
+}
 
 let squadSort = { col: "Mins", dir: -1 };
 const SUM_TITLES = {
@@ -454,8 +508,8 @@ const SUM_TITLES = {
   MinGBCC: "Minutes per goal or big chance created. Lower is better.",
   GBCC: "Games with a goal or a big chance created, out of games played. Sorts by the count.",
 };
-function renderSquadSummary(records){
-  const rows = buildSquadSummary(records);
+function renderSquadSummary(records, matches, intl){
+  const rows = buildSquadSummaryFI(records, matches, intl);
   const cols = [...SUM_COLS, ["PassPct","Pass %"], ["XT100","xT100"], ["EPV90","EPV added p90"], ["MinGBCC","minGBCC"], ["GBCC","G/BCC games"]];
   const blank = squadSort.dir === -1 ? -Infinity : Infinity;  // players without a value always sort last
   rows.sort((a,b) => {
@@ -627,7 +681,7 @@ function renderSeasonRates(){
     // ranking highest first, a 0 is no performance worth listing
     .filter(([player,p]) => !/^total$/i.test(player.trim()) && (p.Mins || 0) > 0
       && validRate(srMetric, p[srMetric]) && !(srDir === -1 && p[srMetric] === 0 && srMetric !== XT100 && srMetric !== EPV_ADDED_P90))
-    .map(([player,p]) => ({ player, value:p[srMetric], mins:p.Mins }))
+    .map(([player,p]) => { const f = fiMinsFor(player, new Set((DATA.matches_meta || []).map(m => m.tab)), false); return { player, value:p[srMetric], mins: f ? f.mins : p.Mins }; })
     .sort((a,b) => srDir === -1 ? (b.value - a.value) : (a.value - b.value));
   // xT per 100 touches only ranks players with 100+ touches; the rest sit greyed below a divider
   const isXt = srMetric === XT100, xt = DATA.xt100 || {};
@@ -682,9 +736,9 @@ function renderInternationals(){
     <tbody>${rows.map(r => `<tr><td>${pname(r.player)}</td><td class="num">${r.Mins}</td><td class="num">${r.Goals}</td><td class="num">${r.Assists}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
-function renderAllCombined(records){
+function renderAllCombined(records, matches){
   const club = {};
-  buildSquadSummary(records).forEach(p => club[p.player] = p);
+  buildSquadSummaryFI(records, matches, false).forEach(p => club[p.player] = p);
   const intl = DATA.internationals || {};
   const players = new Set([...Object.keys(club), ...Object.keys(intl)]);
   const rows = [...players].map(player => {
@@ -1350,16 +1404,16 @@ function render(){
         </div>
         <div class="card">
           <div class="hd"><h2>Squad season summary</h2><span class="sub">${esc(tab.label)}</span></div>
-          <div class="bd" id="squadSummary">${renderSquadSummary(records)}</div>
+          <div class="bd" id="squadSummary">${renderSquadSummary(records, matches, tab.kind === "all")}${tab.kind === "all" ? `<div class="empty" style="padding:8px 0 0;text-align:left;font-size:11.5px">Games, minutes, goals and assists include internationals. Shots, touches and the rates are club games only, as there's no international match data.</div>` : ""}</div>
         </div>
-        ${tab.kind === "all" ? `<div class="card"><div class="hd"><h2>Club + international totals</h2></div><div class="bd">${renderAllCombined(records)}</div></div>` : ""}
+        ${tab.kind === "all" ? `<div class="card"><div class="hd"><h2>Club + international totals</h2></div><div class="bd">${renderAllCombined(records, matches)}</div></div>` : ""}
       </div>
       <div class="stack">
         <div class="card">
           <div class="hd"><h2>Single-match leaderboard</h2><span class="sub">best individual match performances</span></div>
           <div class="bd" id="lbBox">${renderLeaderboard(records)}</div>
         </div>
-        ${(tab.id === "LFC" || tab.id === "ALL") ? `
+        ${tab.id === "LFC" ? `
         <div class="card">
           <div class="hd"><h2>Season rate leaderboard</h2><span class="sub">from the pod's season totals</span></div>
           <div class="bd" id="srBox">${renderSeasonRates()}</div>
@@ -1420,8 +1474,7 @@ function wireInteractions(records, matches, tab){
       const col = el.dataset.col;
       squadSort.dir = (squadSort.col === col) ? squadSort.dir * -1 : (col === "MinGBCC" ? 1 : -1);
       squadSort.col = col;
-      document.getElementById("squadSummary").innerHTML = renderSquadSummary(records);
-      wireInteractions(records, matches, tab);
+      render();
     });
   });
 
