@@ -276,26 +276,28 @@ tr.fi-pick{cursor:pointer}
 .card.ivory .hm-tab .hm-name{color:var(--ink);-webkit-text-fill-color:currentColor;opacity:1}
 .card.ivory .hm-tab .hm-name .inj-name{color:var(--hm-red);-webkit-text-fill-color:currentColor}
 /* ---------- big goals ---------- */
+:root{--bg-goal:#c8102e;--bg-assist:#ffffff}
 .bg-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .bg-key{display:flex;gap:16px;flex-wrap:wrap;color:var(--ink-soft);font-size:11.5px;margin-bottom:12px}
 .bg-key span{display:inline-flex;align-items:center;gap:6px}
 .bg-g,.bg-a{display:inline-block;width:10px;height:10px;box-sizing:border-box}
-.bg-g{border-radius:50%;border:2px solid var(--s2)} .bg-g.big{background:var(--s2)}
-.bg-a{border-radius:2px;border:2px solid var(--s1)} .bg-a.big{background:var(--s1)}
+.bg-g{border-radius:50%;border:2px solid var(--bg-goal)} .bg-g.big{background:var(--bg-goal)}
+.bg-a{border-radius:2px;border:2px solid var(--bg-assist)} .bg-a.big{background:var(--bg-assist)}
 .bg-bars{display:flex;flex-direction:column;gap:7px}
 .bg-row{display:grid;grid-template-columns:110px 1fr 34px;gap:10px;align-items:center;font-size:12px}
 .bg-row .nm{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bg-row .tr{display:flex;gap:2px;height:14px}
 .bg-row .tr i{display:block;height:100%;border-radius:0}
 .bg-row .tr i:first-child{border-radius:4px 0 0 4px} .bg-row .tr i:last-child{border-radius:0 4px 4px 0} .bg-row .tr i:only-child{border-radius:4px}
-.bg-row .tr i.k-bg{background:var(--s2)} .bg-row .tr i.k-og{background:var(--s2);opacity:.42}
-.bg-row .tr i.k-ba{background:var(--s1)} .bg-row .tr i.k-oa{background:var(--s1);opacity:.42}
+.bg-row .tr i.k-bg{background:var(--bg-goal)} .bg-row .tr i.k-og{background:var(--bg-goal);opacity:.42}
+.bg-row .tr i.k-ba{background:var(--bg-assist)} .bg-row .tr i.k-oa{background:var(--bg-assist);opacity:.42}
 .bg-row .v{text-align:right;font-family:"IBM Plex Mono",monospace;color:var(--ink)}
 .bg-grid td,.bg-grid th{padding:4px 3px;text-align:center}
 .bg-grid th.g{font-size:10px;color:var(--ink-faint);font-weight:600;white-space:nowrap}
 .bg-grid th.g small{display:block;font-weight:400}
-.bg-grid td.c{min-width:26px;height:24px}
-.bg-grid td.c .bg-g,.bg-grid td.c .bg-a{margin:1px}
+.bg-grid{width:100%} .bg-grid td.c{min-width:30px;height:28px}
+.bg-bars.wide .bg-row{grid-template-columns:140px 1fr 40px;font-size:13px} .bg-bars.wide .bg-row .tr{height:18px}
+.bg-grid td.c .bg-g,.bg-grid td.c .bg-a{margin:1px;width:14px;height:14px}
 .bg-grid td.c.has:hover{background:var(--surface-3);border-radius:4px}
 .bg-grid td.pl{text-align:left;white-space:nowrap;position:sticky;left:0;background:var(--surface)}
 </style>
@@ -1461,16 +1463,12 @@ function renderBigGoals(){
   }</tbody></table></div>`;
   return `${filters}
     <div class="stack" style="margin-bottom:18px"><div class="record-strip">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v mono">${v}</div><div class="l">${l}</div></div>`).join("")}</div></div>
-    <div class="grid">
-      <div class="stack">
-        <div class="card"><div class="hd"><h2>Game by game</h2><span class="sub">from your Big Goals tab &middot; hover a mark</span></div>
-          <div class="bd">${key}<div class="tablewrap"><table class="bg-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div></div>
-        <div class="card"><div class="hd"><h2>Totals</h2><span class="sub">${esc(BG_SCOPES.find(x => x[0]===bgScope)[1])}</span></div><div class="bd">${table}</div></div>
-      </div>
-      <div class="stack">
-        <div class="card"><div class="hd"><h2>Goal involvements</h2><span class="sub">big first, then the rest</span></div>
-          <div class="bd">${key}<div class="bg-bars">${bars}</div></div></div>
-      </div>
+    <div class="stack">
+      <div class="card"><div class="hd"><h2>Game by game</h2><span class="sub">from your Big Goals tab &middot; hover a mark</span></div>
+        <div class="bd">${key}<div class="tablewrap"><table class="bg-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div></div>
+      <div class="card"><div class="hd"><h2>Goal involvements</h2><span class="sub">big first, then the rest</span></div>
+        <div class="bd">${key}<div class="bg-bars wide">${bars}</div></div></div>
+      <div class="card"><div class="hd"><h2>Totals</h2><span class="sub">${esc(BG_SCOPES.find(x => x[0]===bgScope)[1])}</span></div><div class="bd">${table}</div></div>
     </div>`;
 }
 // compact version for the club tabs: same bars, limited to the tab's games
