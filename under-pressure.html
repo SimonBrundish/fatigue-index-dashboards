@@ -740,7 +740,7 @@ function renderHighsFeed(records){
   const inScopeMatches = new Set(records.map(r => r.match));
   const events = (DATA.season_high_events || [])
     .filter(e => HEADLINE_METRICS.includes(e.metric) && inScopeMatches.has(e.match))
-    .slice().reverse().slice(0, 30);
+    .slice().reverse().slice(0, 5);
   if (!events.length) return `<div class="empty">No headline records yet in this competition.</div>`;
   return `<div class="feed">${events.map(e => `
     <div class="feed-item">
@@ -1473,6 +1473,20 @@ function renderBigGoals(){
       </div>
     </div>`;
 }
+// compact version for the club tabs: same bars, limited to the tab's games
+function renderBigGoalsCard(tab){
+  const scope = tab.id === "PL" ? "PL" : tab.id === "CL" ? "UCL" : tab.id === "CUPS" ? "EFLC" : "ALL";
+  const rows = bgPlayers(scope);
+  if (!rows.length) return `<div class="empty">No goals or assists logged in your Big Goals tab for these games.</div>`;
+  const max = Math.max(...rows.map(r => r.ga), 1);
+  const cls = { G:"k-bg", g:"k-og", A:"k-ba", a:"k-oa" };
+  const key = `<div class="bg-key"><span><i class="bg-g big"></i>Big goal</span><span><i class="bg-g"></i>Other goal</span><span><i class="bg-a big"></i>Big assist</span><span><i class="bg-a"></i>Other assist</span></div>`;
+  const G = rows.reduce((s,r) => s + r.G + r.A, 0), T = rows.reduce((s,r) => s + r.ga, 0);
+  return `${key}<div class="bg-bars">${rows.map(r => `<div class="bg-row"><span class="nm">${pname(r.player)}</span><span class="tr">${
+    ["G","g","A","a"].filter(k => r[k] > 0).map(k => `<i class="${cls[k]}" style="width:${r[k]/max*100}%" title="${esc(r.player)}: ${r[k]} ${BG_WORD[k]}${r[k]>1?'s':''}"></i>`).join("")
+  }</span><span class="v">${r.ga}</span></div>`).join("")}</div>
+  <div class="empty" style="padding:10px 0 0;text-align:left;font-size:11.5px">${G} of ${T} goal involvements were big ones. Game by game in the Big Goals tab.</div>`;
+}
 function wireBigGoals(){
   document.querySelectorAll("[data-bgscope]").forEach(el => el.addEventListener("click", () => { bgScope = el.dataset.bgscope; render(); }));
 }
@@ -1528,6 +1542,10 @@ function render(){
         <div class="card">
           <div class="hd"><h2>Season rate leaderboard</h2><span class="sub">from the pod's season totals</span></div>
           <div class="bd" id="srBox">${renderSeasonRates()}</div>
+        </div>` : ""}
+        ${tab.kind === "club" || tab.kind === "all" ? `<div class="card">
+          <div class="hd"><h2>Big goals &amp; assists</h2><span class="sub">from your Big Goals tab</span></div>
+          <div class="bd">${renderBigGoalsCard(tab.kind === "all" ? { id:"LFC" } : tab)}</div>
         </div>` : ""}
         <div class="card">
           <div class="hd"><h2>Season-high feed</h2><span class="sub">records as they happened</span></div>
