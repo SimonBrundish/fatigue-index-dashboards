@@ -274,7 +274,31 @@ tr.fi-pick{cursor:pointer}
 /* player names and the Injured label: dark ink set explicitly. The GitHub/Squarespace copy has no doctype, so it renders in quirks mode, where tables don't inherit colour from the card */
 .card.ivory table{color:var(--ink)}
 .card.ivory .hm-tab .hm-name{color:var(--ink);-webkit-text-fill-color:currentColor;opacity:1}
-.card.ivory .hm-tab .hm-name .inj-name{color:var(--hm-red);-webkit-text-fill-color:currentColor}</style>
+.card.ivory .hm-tab .hm-name .inj-name{color:var(--hm-red);-webkit-text-fill-color:currentColor}
+/* ---------- big goals ---------- */
+.bg-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.bg-key{display:flex;gap:16px;flex-wrap:wrap;color:var(--ink-soft);font-size:11.5px;margin-bottom:12px}
+.bg-key span{display:inline-flex;align-items:center;gap:6px}
+.bg-g,.bg-a{display:inline-block;width:10px;height:10px;box-sizing:border-box}
+.bg-g{border-radius:50%;border:2px solid var(--s2)} .bg-g.big{background:var(--s2)}
+.bg-a{border-radius:2px;border:2px solid var(--s1)} .bg-a.big{background:var(--s1)}
+.bg-bars{display:flex;flex-direction:column;gap:7px}
+.bg-row{display:grid;grid-template-columns:110px 1fr 34px;gap:10px;align-items:center;font-size:12px}
+.bg-row .nm{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bg-row .tr{display:flex;gap:2px;height:14px}
+.bg-row .tr i{display:block;height:100%;border-radius:0}
+.bg-row .tr i:first-child{border-radius:4px 0 0 4px} .bg-row .tr i:last-child{border-radius:0 4px 4px 0} .bg-row .tr i:only-child{border-radius:4px}
+.bg-row .tr i.k-bg{background:var(--s2)} .bg-row .tr i.k-og{background:var(--s2);opacity:.42}
+.bg-row .tr i.k-ba{background:var(--s1)} .bg-row .tr i.k-oa{background:var(--s1);opacity:.42}
+.bg-row .v{text-align:right;font-family:"IBM Plex Mono",monospace;color:var(--ink)}
+.bg-grid td,.bg-grid th{padding:4px 3px;text-align:center}
+.bg-grid th.g{font-size:10px;color:var(--ink-faint);font-weight:600;white-space:nowrap}
+.bg-grid th.g small{display:block;font-weight:400}
+.bg-grid td.c{min-width:26px;height:24px}
+.bg-grid td.c .bg-g,.bg-grid td.c .bg-a{margin:1px}
+.bg-grid td.c.has:hover{background:var(--surface-3);border-radius:4px}
+.bg-grid td.pl{text-align:left;white-space:nowrap;position:sticky;left:0;background:var(--surface)}
+</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -372,6 +396,7 @@ const TABS = [
   { id:"INTL", label:"Internationals", kind:"intl" },
   { id:"ALL",  label:"All Football", kind:"all" },
   { id:"FI",   label:"Fatigue Index", kind:"fi" },
+  { id:"BIG",  label:"Big Goals", kind:"big" },
 ];
 
 let DATA = null;
@@ -406,6 +431,7 @@ function renderTabs(){
     if (t.kind === "club") n = matchesForTab(t).length;
     else if (t.kind === "intl") n = Object.keys(DATA.internationals || {}).length;
     else if (t.kind === "fi") n = fiPlayers().length;
+    else if (t.kind === "big") n = bgPlayers("ALL").length;
     btn.innerHTML = `${esc(t.label)}${n !== "" ? `<span class="n">${n}</span>` : ""}`;
     btn.addEventListener("click", () => { activeTab = t.id; selectedMatch = null; render(); });
     nav.appendChild(btn);
@@ -1372,6 +1398,85 @@ function wireFatigue(){
 }
 
 // ---------- main render ----------
+
+// ---------- big goals (Simon's "Big Goals" tab) ----------
+// Codes per game: G big goal, g goal, A big assist, a assist. Game numbers follow
+// the match order by date, the same as the Fatigue Index tab.
+const BG_SHORT = { "Newcastle United":"NEW","Nottingham Forest":"NFO","Ipswich Town":"IPS","Atletico Madrid":"ATM","Fulham":"FUL",
+  "Tottenham Hotspur":"TOT","Bournemouth":"BOU","Manchester City":"MCI","LASK":"LAS","Brentford":"BRE","Villarreal":"VIL",
+  "Brighton & Hove Albion":"BHA","Chelsea":"CHE","Arsenal":"ARS","Fenerbahce":"FEN","Crystal Palace":"CRY","Manchester United":"MUN" };
+const BG_SCOPES = [["ALL","All club"],["PL","Premier League"],["UCL","Champions League"],["EFLC","Cups"]];
+let bgScope = "ALL";
+function bgGames(){
+  const map = fiGameMap(), byTab = {};
+  (DATA.matches_meta || []).forEach(m => byTab[m.tab] = m);
+  return Object.keys(map).map(Number).sort((a,b) => a-b).map(n => ({ n, m: byTab[map[n]] }));
+}
+function bgPlayers(scope){
+  const games = bgGames().filter(g => scope === "ALL" || g.m.competition === scope);
+  return ((DATA.big_goals || {}).players || []).map(p => {
+    const t = { player:p.player, G:0, g:0, A:0, a:0, games:0, cells:{} };
+    games.forEach(({n}) => {
+      const code = (p.cells || {})[n] || "";
+      if (!code) return;
+      t.cells[n] = code; t.games += 1;
+      for (const ch of code) if ("GgAa".includes(ch)) t[ch] += 1;
+    });
+    t.goals = t.G + t.g; t.assists = t.A + t.a; t.ga = t.goals + t.assists;
+    return t;
+  }).filter(t => t.ga > 0).sort((a,b) => b.ga - a.ga || (b.G + b.A) - (a.G + a.A) || b.goals - a.goals);
+}
+function bgGlyph(ch){
+  if (ch === "G") return `<i class="bg-g big"></i>`;
+  if (ch === "g") return `<i class="bg-g"></i>`;
+  if (ch === "A") return `<i class="bg-a big"></i>`;
+  if (ch === "a") return `<i class="bg-a"></i>`;
+  return "";
+}
+const BG_WORD = { G:"big goal", g:"goal", A:"big assist", a:"assist" };
+function renderBigGoals(){
+  const rows = bgPlayers(bgScope);
+  const games = bgGames().filter(g => bgScope === "ALL" || g.m.competition === bgScope);
+  const sum = k => rows.reduce((s,r) => s + r[k], 0);
+  const G = sum("G"), g = sum("g"), A = sum("A"), a = sum("a");
+  const tot = G + g + A + a;
+  const tiles = [["Goals", G+g],["Big goals", G],["Assists", A+a],["Big assists", A],["Big share", tot ? Math.round((G+A)/tot*100) + "%" : "–"]];
+  const filters = `<div class="bg-filters">${BG_SCOPES.map(([id,l]) => `<button class="chip" data-bgscope="${id}" aria-pressed="${id===bgScope}">${esc(l)}</button>`).join("")}</div>`;
+  const key = `<div class="bg-key"><span><i class="bg-g big"></i>Big goal</span><span><i class="bg-g"></i>Other goal</span><span><i class="bg-a big"></i>Big assist</span><span><i class="bg-a"></i>Other assist</span></div>`;
+  if (!rows.length) return filters + `<div class="card"><div class="bd"><div class="empty">No goals or assists in these games yet.</div></div></div>`;
+  const max = Math.max(...rows.map(r => r.ga), 1);
+  const bars = rows.map(r => {
+    const segs = ["G","g","A","a"].filter(k => r[k] > 0).map(k => `<i class="${({G:"k-bg",g:"k-og",A:"k-ba",a:"k-oa"})[k]}" style="width:${r[k]/max*100}%" title="${esc(r.player)}: ${r[k]} ${BG_WORD[k]}${r[k]>1?'s':''}"></i>`).join("");
+    return `<div class="bg-row"><span class="nm">${pname(r.player)}</span><span class="tr">${segs}</span><span class="v">${r.ga}</span></div>`;
+  }).join("");
+  const head = `<th class="playercol">Player</th>` + games.map(({n,m}) => `<th class="g" title="${esc(m ? `${m.opponent} (${m.venue}), ${m.competition}, ${m.score_for}-${m.score_against}` : "Game " + n)}">${esc(m ? (BG_SHORT[m.opponent] || m.opponent.slice(0,3).toUpperCase()) : n)}<small>${m ? (m.venue === "H" ? "H" : "A") : ""}</small></th>`).join("");
+  const body = rows.map(r => `<tr><td class="pl">${pname(r.player)}</td>` + games.map(({n,m}) => {
+    const code = r.cells[n] || "";
+    if (!code) return `<td class="c"></td>`;
+    const words = [...code].map(ch => BG_WORD[ch]).filter(Boolean).join(", ");
+    return `<td class="c has" title="${esc(r.player)} v ${esc(m ? m.opponent : "game " + n)}: ${esc(words)}">${[...code].map(bgGlyph).join("")}</td>`;
+  }).join("") + `</tr>`).join("");
+  const table = `<div class="tablewrap"><table><thead><tr><th class="playercol">Player</th><th class="num">G+A</th><th class="num">Big goals</th><th class="num">Other goals</th><th class="num">Big assists</th><th class="num">Other assists</th><th class="num">Big share</th><th class="num">Games with G/A</th></tr></thead><tbody>${
+    rows.map(r => `<tr><td>${pname(r.player)}</td><td class="num">${r.ga}</td><td class="num">${r.G}</td><td class="num">${r.g}</td><td class="num">${r.A}</td><td class="num">${r.a}</td><td class="num">${Math.round((r.G+r.A)/r.ga*100)}%</td><td class="num">${r.games}</td></tr>`).join("")
+  }</tbody></table></div>`;
+  return `${filters}
+    <div class="stack" style="margin-bottom:18px"><div class="record-strip">${tiles.map(([l,v]) => `<div class="record-tile"><div class="v mono">${v}</div><div class="l">${l}</div></div>`).join("")}</div></div>
+    <div class="grid">
+      <div class="stack">
+        <div class="card"><div class="hd"><h2>Game by game</h2><span class="sub">from your Big Goals tab &middot; hover a mark</span></div>
+          <div class="bd">${key}<div class="tablewrap"><table class="bg-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div></div>
+        <div class="card"><div class="hd"><h2>Totals</h2><span class="sub">${esc(BG_SCOPES.find(x => x[0]===bgScope)[1])}</span></div><div class="bd">${table}</div></div>
+      </div>
+      <div class="stack">
+        <div class="card"><div class="hd"><h2>Goal involvements</h2><span class="sub">big first, then the rest</span></div>
+          <div class="bd">${key}<div class="bg-bars">${bars}</div></div></div>
+      </div>
+    </div>`;
+}
+function wireBigGoals(){
+  document.querySelectorAll("[data-bgscope]").forEach(el => el.addEventListener("click", () => { bgScope = el.dataset.bgscope; render(); }));
+}
+
 function render(){
   renderTabs();
   const tab = TABS.find(t => t.id === activeTab);
@@ -1380,6 +1485,12 @@ function render(){
   if (tab.kind === "fi"){
     app.innerHTML = renderFatigueTab();
     wireFatigue();
+    return;
+  }
+
+  if (tab.kind === "big"){
+    app.innerHTML = renderBigGoals();
+    wireBigGoals();
     return;
   }
 
