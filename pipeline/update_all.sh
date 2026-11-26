@@ -8,7 +8,10 @@
 # Report: logs/update_YYYYMMDD.md (last 30 kept).
 #
 # Scrapes come first because Perf Desk needs FotMob's running data, and Under
-# Pressure is last because it reads the Fatigue Index it reports on.
+# Pressure is last because it reads the Fatigue Index it reports on. The
+# Transfermarkt injuries scrape is the slow one and talks to a different site,
+# so it runs in the background alongside the other scrapes, Perf Desk, HQC and
+# Barts; only the Fatigue Index rebuild waits for it.
 set -uo pipefail
 
 LA="/Users/simon/Documents/LiverpoolAnalysis"
@@ -46,7 +49,8 @@ if ! ( set -C; echo $$ >"$LOCK" ) 2>/dev/null; then
   fi
   echo $$ >"$LOCK"           # left behind by a run that died
 fi
-trap 'rm -f "$LOCK"' EXIT
+BARTS_TMP="" BARTS_DIR=""
+trap 'rm -f "$LOCK"; [ -n "$BARTS_TMP" ] && rm -rf "$BARTS_TMP"' EXIT
 
 DAY=$(date +%Y%m%d)
 LOG="$LOGS/update_$DAY.log"
@@ -79,14 +83,45 @@ sync_repo() {
   git -C "$REPO" pull -q --ff-only origin main && cp "$REPO/up_running_weekly.py" "$LA/up_pod/up_running_weekly.py"
 }
 
+# Barts' repo is cloned once per run and kept until the end: the Team Dashboard
+# step reads his pages too
+barts_clone() {
+  [ -n "$BARTS_DIR" ] && return 0
+  BARTS_TMP=$(mktemp -d "${TMPDIR:-/tmp}/barts.XXXXXX")
+  git clone -q --depth 1 https://github.com/barts78/DrBarts2627.git "$BARTS_TMP/repo" && BARTS_DIR="$BARTS_TMP/repo"
+}
 barts() {
-  local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/barts.XXXXXX")
-  if git clone -q --depth 1 https://github.com/barts78/DrBarts2627.git "$tmp/repo"; then
-    ( cd "$LA/up_pod" && BARTS_LOCAL="$tmp/repo" "$PY" -W ignore fetch_barts_matches.py --local "$tmp/repo" ) || { rm -rf "$tmp"; return 1; }
+  if barts_clone; then
+    ( cd "$LA/up_pod" && BARTS_LOCAL="$BARTS_DIR" "$PY" -W ignore fetch_barts_matches.py --local "$BARTS_DIR" )
   else
-    ( cd "$LA/up_pod" && "$PY" -W ignore fetch_barts_matches.py ) || { rm -rf "$tmp"; return 1; }
+    ( cd "$LA/up_pod" && "$PY" -W ignore fetch_barts_matches.py )
   fi
-  rm -rf "$tmp"
+}
+# new games' rows for the sheet's "Team Dashboard" tab, listed in sheet_todo.json
+team_dashboard() {
+  barts_clone || return 1
+  ( cd "$LA/up_pod" && BARTS_LOCAL="$BARTS_DIR" "$PY" -W ignore team_dashboard.py )
+}
+
+# Transfermarkt injuries in the background; bg_wait records it as a step.
+INJ_LOG="$LOGS/injuries_$(date +%Y%m%d).log"
+bg_injuries() {
+  local py="$LA/lfc_data/venv/bin/python3"; [ -x "$py" ] || py="$PY"
+  ( cd "$LA/fatigue" && "$py" refresh_injuries.py ) && return 0
+  sleep 120                       # e.g. read the minutes file mid-write: once more
+  ( cd "$LA/fatigue" && "$py" refresh_injuries.py )
+}
+bg_wait() {
+  local name="Injuries (Transfermarkt, ran alongside)" rc=0
+  say "WAIT  $name"
+  wait "$INJ_PID" || rc=$?
+  cat "$INJ_LOG" >>"$LOG" 2>/dev/null
+  if [ "$rc" = 0 ]; then
+    STEPS+=("| $name | OK | $(( (SECONDS - INJ_T0) / 60 )) min |"); say "OK    $name"
+  else
+    STEPS+=("| $name | FAILED (exit $rc) | $(( (SECONDS - INJ_T0) / 60 )) min |"); ANY_FAILED=1
+    say "FAIL  $name (exit $rc)"
+  fi
 }
 
 cd "$LA" || exit 1
@@ -100,14 +135,21 @@ fi
 
 step "Sync repo + up_running_weekly.py" sync_repo
 if [ "$UP_ONLY" = 0 ]; then
-  step "Scrapes (FBref minutes, FotMob, injuries)" env FI_SCRAPE_ONLY=1 "$LA/fatigue/refresh_fatigue_index.sh"
+  INJ_T0=$SECONDS
+  bg_injuries >"$INJ_LOG" 2>&1 &
+  INJ_PID=$!
+  say "START Injuries (Transfermarkt) in the background, pid $INJ_PID"
+  step "Scrapes (FBref minutes, FotMob)" env FI_SCRAPE_ONLY=1 FI_SKIP_INJURIES=1 "$LA/fatigue/refresh_fatigue_index.sh"
   step "Perf Desk" bash -c "cd '$LA/fotmob_physical' && '$PY' -W ignore build_perf_desk.py"
-  step "HQC" "$LA/understat_bulk/nightly_update.sh"
+  # Barts before HQC: build_lfc_shots.py takes its game list from barts_matches.json
   step "Barts' match pages" barts
+  step "HQC" "$LA/understat_bulk/nightly_update.sh"
+  bg_wait
   step "Fatigue Index rebuild" env FI_BUILD_ONLY=1 "$LA/fatigue/refresh_fatigue_index.sh"
 fi
 step "Under Pressure pipeline" bash -c "cd '$LA/up_pod' && '$PY' -W ignore pipeline.py"
 step "Sheet to-do list" bash -c "cd '$LA/up_pod' && '$PY' -W ignore sheet_plan.py"
+step "Team Dashboard rows" team_dashboard
 step "Checks" "$PY" "$LA/update_checks.py"
 
 # publish only what passed; anything held keeps its last good version on GitHub
@@ -145,10 +187,11 @@ fi_warn = [l.split("WARN:", 1)[1].strip() for l in fi_log.splitlines() if l.star
 if scrape or fi_warn:
     out += ["## Scraper warnings", ""] + [f"- {w}" for w in dict.fromkeys(scrape + fi_warn)] + [""]
 t = json.loads((LA / "logs/sheet_todo.json").read_text()) if (LA / "logs/sheet_todo.json").exists() else {}
-if t.get("missing_tabs") or t.get("fi_tab_empty"):
+if t.get("missing_tabs") or t.get("fi_tab_empty") or t.get("team_dashboard"):
     out += ["## Needs the sheet (a Claude session, Sheets connector)", ""]
     out += [f"- New match tab: {m['tab']} ({m['date']})" for m in t.get("missing_tabs", [])]
     out += [f"- Fatigue Index tab, empty game column: {f['tab']} ({f['range']})" for f in t.get("fi_tab_empty", [])]
+    out += [f"- Team Dashboard, {x['kind']}: {x['tab']} ({x['range']})" for x in t.get("team_dashboard", [])]
     out += ["", "Then run `update_all.sh --up-only`.", ""]
 Path(report).write_text("\n".join(out))
 PY
@@ -168,7 +211,7 @@ if [ "$ANY_FAILED" = 1 ] || [ -n "$HELD" ]; then
 fi
 
 # keep the last 30 reports and raw logs
-for pat in 'update_[0-9]*.md' 'update_[0-9]*.log'; do
+for pat in 'update_[0-9]*.md' 'update_[0-9]*.log' 'injuries_[0-9]*.log'; do
   # shellcheck disable=SC2086
   ls -1t "$LOGS"/$pat 2>/dev/null | tail -n +31 | while read -r f; do rm -f "$f"; done
 done

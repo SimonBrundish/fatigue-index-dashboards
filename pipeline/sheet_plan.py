@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parent
 LA = HERE.parent
 OUT = LA / "logs/sheet_todo.json"
 FIRST, LAST = 5, 42            # player rows of the Fatigue Index tab
-TAB = {"Nottingham Forest": "Forest", "Atletico": "Atletico Madrid"}   # Barts name -> sheet tab, as fill_sheet_from_barts.py
+TAB = {"Nottingham Forest": "Forest", "Atletico": "Atletico Madrid", "Brugge a": "Club Brugge a"}   # Barts name -> sheet tab, as fill_sheet_from_barts.py
 wb = openpyxl.load_workbook(HERE / "up_dashboard_live.xlsx", data_only=True)
 barts = json.loads((HERE / "barts_matches.json").read_text())
 for m in barts["matches_meta"]:
