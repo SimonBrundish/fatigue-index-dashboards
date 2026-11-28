@@ -1022,9 +1022,18 @@
     return ticks;
   }
 
+  const SC_Y = [
+    { key: 'runningAvg', label: 'High-speed running', axis: 'High-speed running per match (km)', unit: ' km', dec: 2, tick: 1, hint: 'up = more of that ground at high speed' },
+    { key: 'sprintDistKmAvg', label: 'Sprint distance', axis: 'Sprint distance per match (km)', unit: ' km', dec: 2, tick: 2, hint: 'up = more of that ground at sprint speed' },
+    { key: 'sprintsAvg', label: 'Sprints', axis: 'Sprints per match', unit: '', dec: 1, tick: 0, hint: 'up = more sprints per match' },
+    { key: 'sprintIntensity', label: 'Sprint intensity', axis: 'Sprints per km covered', unit: ' /km', dec: 2, tick: 2, hint: 'up = more sprints for each km covered' },
+  ];
+  let scY = 'runningAvg';
   function scatterBlock(list) {
+    const Y = SC_Y.find(m => m.key === scY) || SC_Y[0];
+    const yv = t => t[Y.key] || 0;
     const W = 680, H = 380, pad = { l: 54, r: 20, t: 16, b: 44 };
-    const xs = list.map(t => t.distanceAvg || 0), ys = list.map(t => t.runningAvg || 0);
+    const xs = list.map(t => t.distanceAvg || 0), ys = list.map(yv);
     const xMin = Math.min(...xs), xMax = Math.max(...xs), yMin = Math.min(...ys), yMax = Math.max(...ys);
     const xPad = (xMax - xMin) * 0.15 || 2, yPad = (yMax - yMin) * 0.15 || 0.5;
     const x0 = Math.max(0, xMin - xPad), x1 = xMax + xPad, y0 = Math.max(0, yMin - yPad), y1 = yMax + yPad;
@@ -1035,19 +1044,19 @@
 
     const gridlines = [
       ...niceTicks(x0, x1, 6).map(v => `<line x1="${sx(v)}" x2="${sx(v)}" y1="${pad.t}" y2="${H - pad.b}" class="gl"/><text x="${sx(v)}" y="${H - pad.b + 15}" class="gtx" text-anchor="middle">${fmt(v, 0)}</text>`),
-      ...niceTicks(y0, y1, 5).map(v => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${sy(v)}" y2="${sy(v)}" class="gl"/><text x="${pad.l - 7}" y="${sy(v) + 3}" class="gtx" text-anchor="end">${fmt(v, 1)}</text>`)
+      ...niceTicks(y0, y1, 5).map(v => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${sy(v)}" y2="${sy(v)}" class="gl"/><text x="${pad.l - 7}" y="${sy(v) + 3}" class="gtx" text-anchor="end">${fmt(v, Y.tick)}</text>`)
     ].join('');
     const avgLines = `<line x1="${sx(avgX)}" x2="${sx(avgX)}" y1="${pad.t}" y2="${H - pad.b}" class="gl avg"/>
       <line x1="${pad.l}" x2="${W - pad.r}" y1="${sy(avgY)}" y2="${sy(avgY)}" class="gl avg"/>`;
 
     const byX = list.slice().sort((a, b) => (b.distanceAvg || 0) - (a.distanceAvg || 0));
-    const byY = list.slice().sort((a, b) => (b.runningAvg || 0) - (a.runningAvg || 0));
+    const byY = list.slice().sort((a, b) => yv(b) - yv(a));
     const labelSet = new Set([byX[0], byX[byX.length - 1], byY[0], byY[byY.length - 1]].filter(Boolean).map(t => t.team));
 
     const dots = list.map(t => {
-      const cx = sx(t.distanceAvg || 0), cy = sy(t.runningAvg || 0);
+      const cx = sx(t.distanceAvg || 0), cy = sy(yv(t));
       const lbl = labelSet.has(t.team) ? `<text x="${cx}" y="${cy - 10}" class="dotlbl" text-anchor="middle">${esc(t.team)}</text>` : '';
-      return `<g class="dotg" tabindex="0" data-team="${esc(t.team)}" data-x="${fmt(t.distanceAvg, 1)}" data-y="${fmt(t.runningAvg, 2)}" data-pct="${fmt(t.hsrPct, 1)}" data-matches="${t.matches}">
+      return `<g class="dotg" tabindex="0" data-team="${esc(t.team)}" data-x="${fmt(t.distanceAvg, 1)}" data-y="${fmt(yv(t), Y.dec)}${Y.unit}" data-ylab="${esc(Y.label)}" data-hsr="${fmt(t.runningAvg, 2)}" data-pct="${fmt(t.hsrPct, 1)}" data-matches="${t.matches}">
         <circle cx="${cx}" cy="${cy}" r="13" class="hit"/>
         <circle cx="${cx}" cy="${cy}" r="5" class="dot"/>
         ${lbl}
@@ -1057,15 +1066,16 @@
     const midY = (pad.t + H - pad.b) / 2;
     return `<div class="scatter-card">
       <div class="table-head-row">
-        <h3 class="table-title">Distance covered vs high-speed running</h3>
+        <h3 class="table-title">Distance covered vs ${esc(Y.label.toLowerCase())}</h3>
         <span class="table-hint">per match, this competition</span>
       </div>
-      <p class="scatter-hint">Each dot is a team. Right = covers more ground per match; up = more of that ground at high speed. Dashed guide lines mark the average across tracked teams.</p>
+      <div class="metric-pills sc-pills" style="margin:0 0 10px">${SC_Y.map(m => `<button class="pill${m.key === Y.key ? ' active' : ''}" data-scy="${m.key}">${m.label}</button>`).join('')}</div>
+      <p class="scatter-hint">Each dot is a team. Right = covers more ground per match; ${Y.hint}. Dashed guide lines mark the average across tracked teams.</p>
       <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} ${H}" class="scatter" role="img" aria-label="Teams plotted by distance covered per match against high-speed running distance per match">
+        <svg viewBox="0 0 ${W} ${H}" class="scatter" role="img" aria-label="Teams plotted by distance covered per match against ${esc(Y.axis.toLowerCase())}">
           ${gridlines}${avgLines}${dots}
           <text x="${(pad.l + W - pad.r) / 2}" y="${H - 6}" class="axislab" text-anchor="middle">Distance covered per match (km) &rarr;</text>
-          <text x="14" y="${midY}" class="axislab" text-anchor="middle" transform="rotate(-90 14 ${midY})">High-speed running per match (km) &rarr;</text>
+          <text x="14" y="${midY}" class="axislab" text-anchor="middle" transform="rotate(-90 14 ${midY})">${esc(Y.axis)} &rarr;</text>
         </svg>
         <div class="scatter-tip" id="teams-scatter-tip" hidden></div>
       </div>
@@ -1086,7 +1096,8 @@
       const name = document.createElement('div'); name.className = 'tteam'; name.textContent = d.team; tip.appendChild(name);
       const row = (label, val) => { const r = document.createElement('div'); r.textContent = label + ': '; const b = document.createElement('b'); b.textContent = val; r.appendChild(b); return r; };
       tip.appendChild(row('Distance/match', d.x + ' km'));
-      tip.appendChild(row('High-speed/match', d.y + ' km'));
+      tip.appendChild(row(d.ylab + '/match', d.y));
+      if (d.ylab !== 'High-speed running') tip.appendChild(row('High-speed/match', d.hsr + ' km'));
       const meta = document.createElement('div'); meta.className = 'dim'; meta.textContent = `${d.pct}% of distance at high speed · ${d.matches} matches`; tip.appendChild(meta);
       tip.hidden = false;
       position(evt);
@@ -1108,6 +1119,7 @@
     if (list.length < 2) { el.innerHTML = ''; return; }
     el.innerHTML = scatterBlock(list);
     wireScatter(el);
+    el.querySelectorAll('[data-scy]').forEach(b => b.addEventListener('click', () => { scY = b.dataset.scy; renderTeamsScatter(); }));
   }
 
   function renderTeams() { renderTeamsBoard(); renderTeamsScatter(); renderTeamsTable(); }
